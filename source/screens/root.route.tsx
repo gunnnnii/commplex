@@ -1,10 +1,10 @@
 import { Box, Spacer, Text, useInput } from "ink";
-import { Fragment, useContext, useEffect, useState, type ComponentProps, type PropsWithChildren } from "react";
+import { useContext, useEffect, useState, type ComponentProps, type PropsWithChildren } from "react";
 import { Outlet, useNavigate, useParams } from "react-router";
 import { Script } from "../models/process/script.js";
 import { useRows } from "../utilities/hooks/dimensions.js";
 import { ErrorBoundary } from "react-error-boundary";
-import { match, P, isMatching } from "ts-pattern";
+import { match, P } from "ts-pattern";
 import { observer } from 'mobx-react-lite'
 import type { Process, ProcessState } from "../models/process/process.js";
 import { ProcessStore, ProcessStoreContext, ProcessStoreProvider, } from "../models/process/store.js";
@@ -187,7 +187,6 @@ const ScriptList = observer((props: { scripts: Script[] }) => {
   const selectedCommand = processes.at(selectedScriptIndex);
 
   const { service: serviceList = [], script: scriptList = [], task: taskList = [] } = groupBy(processes, (process) => process.type);
-  const deadIndex = serviceList.findIndex((process) => isMatching({ state: { status: 'dead' }, type: 'service' })(process));
 
   useEffect(() => {
     if (selectedCommand) {

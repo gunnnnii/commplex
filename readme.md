@@ -7,7 +7,7 @@ Commplex is a simple terminal multiplexer for Javascript projects.
 All you need to get started is to run it in your project root. 
 
 ```bash
-npx @gunnnnii/commplex
+npx commplex
 ```
 
 It will automatically pick up your package scripts and let you interactively run them.
