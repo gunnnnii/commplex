@@ -254,12 +254,12 @@ class LogView {
 
     if (this.direction === 'backwards') {
       // access an extra line on either end to check if there are more lines
-      const lines: (Line | PADDING)[] = this.iterateLinesBackwards(start + 1).take(total + 1).toArray()
+      const lines: (Line | PADDING)[] = take(this.iterateLinesBackwards(start + 1), total + 1)
       return { lines: lines };
     }
 
     // access an extra line on either end to check if there are more lines
-    const lines: (Line | PADDING)[] = this.iterateLinesForwards(start - 1).take(total + 1).toArray()
+    const lines: (Line | PADDING)[] = take(this.iterateLinesForwards(start - 1), total + 1)
     return { lines: lines };
   }
 
@@ -516,3 +516,17 @@ const LogViewPrint = observer((props: { view: LogView }) => {
       .otherwise((message) => <Text key={message.id} wrap='wrap'>{message.content}</Text>)
   })
 })
+
+function take<T>(iterator: Iterator<T>, n: number): T[] {
+  const result: T[] = [];
+  let count = 0;
+  while (count < n) {
+    const next = iterator.next();
+    if (next.done) {
+      break;
+    }
+    result.push(next.value);
+    count++;
+  }
+  return result;
+}

@@ -193,9 +193,7 @@ const ScriptList = observer((props: { scripts: Script[] }) => {
   });
 
   const store = useContext(ProcessStoreContext);
-  const processes = store.processes
-    .values()
-    .toArray()
+  const processes = Array.from(store.processes.values())
     .sort(sortProcesses);
 
   const selectedCommand = processes.at(selectedScriptIndex);

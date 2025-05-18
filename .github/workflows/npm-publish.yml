@@ -13,21 +13,52 @@ jobs:
   publish:
     environment: production
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org/'
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          run_install: true
-      - name: Build package
-        run: pnpm build
-      - name: Publish package
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    - uses: actions/checkout@v4
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'pnpm'
+
+    - name: Install dependencies
+      run: pnpm install
+
+    - name: Build package
+      run: pnpm build
+
+    - name: Set publishing config
+      run: pnpm config set '//registry.npmjs.org/:_authToken' "${NODE_AUTH_TOKEN}"
+      env:
+        NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+
+    - name: Prune dev dependencies
+      run: pnpm install --prod
+
+    - name: Publish package
+      run: pnpm publish --access public
+
+
+
+      # - name: Checkout code
+      #   uses: actions/checkout@v4
+      # - name: Set up Node.js
+      #   uses: actions/setup-node@v4
+      #   with:
+      #     node-version: '22'
+      #     registry-url: 'https://registry.npmjs.org/'
+      # - name: Setup pnpm
+      #   uses: pnpm/action-setup@v3
+      # - name: Build package
+      #   run: pnpm build
+      # - name: Publish package
+      #   run: npm publish
+      #   env:
+      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
