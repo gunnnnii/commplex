@@ -1,4 +1,4 @@
-import { action, observable } from "mobx";
+import { action, isFlowCancellationError, observable } from "mobx";
 import { createContext, type PropsWithChildren, useState, useEffect } from "react";
 import type { Script } from "./script";
 import { Process } from "./process";
@@ -16,10 +16,20 @@ export class ProcessStore {
   @action addProcess(script: Script) {
     const process = new Process(script);
     this.processes.set(script.name, process);
+
+    if (process.autostart) process.connect()
+      .catch((error) => {
+        if (!isFlowCancellationError(error)) {
+          throw error;
+        }
+      });
+
     return process;
   }
 
   @action removeProcess(name: string) {
+    const process = this.processes.get(name);
+    if (process) process.disconnect()
     this.processes.delete(name);
   }
 }
@@ -35,7 +45,7 @@ function DefaultProcessStoreProvider(
   useEffect(() => {
     return () => {
       for (const process of store.processes.values()) {
-        process.kill();
+        process.disconnect();
       }
     }
   })

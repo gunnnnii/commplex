@@ -1,37 +1,57 @@
-import { observable, computed, action } from "mobx"
-import { spawn } from 'node:child_process';
+import { observable, computed, action, flow, flowResult, runInAction, when } from "mobx";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createMessage, type Message } from "./message.js";
 import type { Script } from "./script.js";
 import { match } from "ts-pattern";
+import type { CancellablePromise } from "mobx/dist/internal.js";
 
 export type ProcessState =
-	| { status: 'dead'; state: 'closing' | 'closed'; code: null | number }
-	| { status: 'alive'; state: 'starting' | 'running'; runningSince: null | number }
+	| { status: "dead"; state: "closing" | "closed" }
+	| {
+		status: "alive";
+		state: "starting" | "running";
+		runningSince: null | number;
+	};
+
+type SpawnResolution = { success: true } | { success: false, code?: number | null }
 
 export class Process {
-	#killController: AbortController | null = null
+	@observable accessor #state = "closed" as ProcessState["state"];
+	@observable accessor #runningSince: number | null = null;
+	@observable accessor #exitCode: Promise<number | null> | null = null;
+	@observable accessor #childProcess: ChildProcessWithoutNullStreams | null = null;
 
-	@observable accessor #state = 'closed' as ProcessState['state']
-	@observable accessor #runningSince: number | null = null
-	@observable accessor #exitCode: number | null = null
-
-	@observable accessor messages: Message[] = []
+	@observable accessor messages: Message[] = [];
 
 	@computed get state(): ProcessState {
 		const state = this.#state;
 
 		return match(state)
-			.with('starting', (state) => ({ status: 'alive' as const, state, runningSince: this.#runningSince }))
-			.with('running', (state) => ({ status: 'alive' as const, state, runningSince: this.#runningSince }))
-			.with('closing', (state) => ({ status: 'dead' as const, state, code: this.#exitCode }))
-			.with('closed', (state) => ({ status: 'dead' as const, state, code: this.#exitCode }))
+			.with("starting", (state) => ({
+				status: "alive" as const,
+				state,
+				runningSince: this.#runningSince,
+			}))
+			.with("running", (state) => ({
+				status: "alive" as const,
+				state,
+				runningSince: this.#runningSince,
+			}))
+			.with("closing", (state) => ({
+				status: "dead" as const,
+				state,
+			}))
+			.with("closed", (state) => ({
+				status: "dead" as const,
+				state,
+			}))
 			.exhaustive();
 	}
 
-	readonly name: Script['name'];
-	readonly script: Script['script'];
-	readonly autostart: Script['autostart'];
-	readonly type: Script['type'];
+	readonly name: Script["name"];
+	readonly script: Script["script"];
+	readonly autostart: Script["autostart"];
+	readonly type: Script["type"];
 
 	constructor(script: Script) {
 		this.name = script.name;
@@ -40,90 +60,117 @@ export class Process {
 		this.type = script.type;
 	}
 
-	@action start() {
-		this.#killController?.abort();
+	// private property fails to bind to the class instance
+	@flow.bound
+	private *startConnection() {
+		if (this.#state === 'closing') {
+			this.#childProcess?.kill('SIGKILL');
+		}
 
-		const controller = new AbortController();
-		this.#killController = controller;
+		if (this.#state === 'running') {
+			this.disconnect();
+			yield when(() => this.#state === 'closed');
+		}
 
-		this.#state = 'starting';
-		this.#runningSince = Date.now();
 		this.#exitCode = null;
+		this.#state = "starting";
 
 		const child = spawn(this.script, {
 			shell: true,
-			stdio: 'pipe',
-			signal: this.#killController.signal,
+			stdio: "pipe",
 			env: {
 				...globalThis.process.env,
-				FORCE_COLOR: '1',
+				FORCE_COLOR: "1",
 			},
 		});
 
-		child.on('spawn', () => {
-			this.#connect();
+		this.#childProcess = child;
+
+		const startResolver = Promise.withResolvers<SpawnResolution>();
+
+		child.once('spawn', () => {
+			startResolver.resolve({ success: true });
+		})
+
+		child.once('error', (err) => {
+			this.#addMessage(err.message, "stderr");
+			startResolver.resolve({ success: false });
+		});
+
+		child.once('close', (code) => {
+			startResolver.resolve({ success: false, code });
+		});
+
+		let success = false;
+
+		try {
+			success = yield startResolver.promise;
+		} finally {
+			child.removeAllListeners();
+		}
+
+		if (success) {
+			this.#connect(child);
+		} else {
+			this.#state = 'closed';
+		}
+	}
+
+	@action #connect(child: ChildProcessWithoutNullStreams) {
+		this.#state = 'running';
+		const exitPromise = Promise.withResolvers<number | null>()
+
+		child.stdout.on('data', (data) => {
+			this.#addMessage(data.toString(), "stdout");
+		});
+
+		child.stderr.on('data', (data) => {
+			this.#addMessage(data.toString(), "stderr");
 		});
 
 		child.on('exit', code => {
-			this.#exit(code);
-		});
-
-		child.on('error', error => {
-			if (error.name === "AbortError") {
-				this.#exit(null);
-			} else {
-				throw error;
-			}
+			this.#state = 'closing';
+			exitPromise.resolve(code);
 		})
 
-		child.on('close', code => {
-			this.#close(code);
-			child.removeAllListeners();
-		});
-
-		child.stdout.on('data', data => {
-			this.#addMessage(data.toString(), 'stdout');
-		});
-
-		child.stderr.on('data', data => {
-			this.#addMessage(data.toString(), 'stderr');
-		});
-
-		return () => {
-			controller.abort();
-			child.kill('SIGTERM');
-		};
+		child.once('close', (code) => {
+			runInAction(() => {
+				this.#state = 'closed';
+				exitPromise.resolve(code);
+				child.removeAllListeners();
+			})
+		})
 	}
 
-	@action #addMessage(data: string, channel: 'stdout' | 'stderr') {
-		this.messages.push(createMessage(data, channel));
-	}
+	#startedConnectPromise: CancellablePromise<void> | null = null;
+	connect() {
+		if (this.#startedConnectPromise == null) {
+			const promise = flowResult(this.startConnection())
+			this.#startedConnectPromise = promise;
 
-	@action #connect() {
-		if (this.#state === 'starting') {
-			this.#state = 'running';
-			this.#runningSince = Date.now();
+			promise.finally(() => {
+				this.#startedConnectPromise = null;
+			})
 		}
+
+		return this.#startedConnectPromise
 	}
 
-	@action #exit(code: number | null) {
-		if (this.state.status === 'alive') {
+	async disconnect(signal?: NodeJS.Signals | number) {
+		const exitCode = this.#exitCode;
+
+		if (this.#state === 'closing') return await exitCode;
+
+		runInAction(() => {
 			this.#state = 'closing';
-			this.#exitCode = code ?? 0;
-		}
+		})
+
+		this.#childProcess?.kill(signal);
+
+		return await exitCode;
 	}
 
-	@action #close(code: number | null) {
-		if (this.state.status === 'alive') {
-			this.#state = 'closed';
-			this.#exitCode = code ?? 0;
-		}
-	}
-
-	@action kill() {
-		this.#killController?.abort();
-
-		this.#state = 'closed';
-		this.#exitCode = 0;
+	@action #addMessage(data: string, channel: "stdout" | "stderr") {
+		this.messages.push(createMessage(data, channel));
 	}
 }

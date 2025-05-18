@@ -8,7 +8,7 @@ import { match, P } from "ts-pattern";
 import { observer } from 'mobx-react-lite'
 import type { Process, ProcessState } from "../models/process/process.js";
 import { ProcessStore, ProcessStoreContext, ProcessStoreProvider, } from "../models/process/store.js";
-import { flow, flowResult, observable } from "mobx";
+import { flow, flowResult, isFlowCancellationError, observable } from "mobx";
 import { readFile } from "node:fs/promises";
 import { packageUp } from "package-up";
 import { z } from "zod";
@@ -88,7 +88,11 @@ export const LoadedRoot = observer((props: { loader: ConfigLoader }) => {
     for (const script of scripts) {
       if (!store.processes.has(script.name)) {
         const process = store.addProcess(script);
-        if (process.autostart) process.start();
+        if (process.autostart) process.connect().catch((error) => {
+          if (!isFlowCancellationError(error)) {
+            throw error;
+          }
+        });
       }
     }
   }, [store, scripts]);
@@ -96,7 +100,12 @@ export const LoadedRoot = observer((props: { loader: ConfigLoader }) => {
   useEffect(() => {
     for (const process of store.processes.values()) {
       if (process.autostart) {
-        process.start();
+        process.connect()
+          .catch((error) => {
+            if (!isFlowCancellationError(error)) {
+              throw error;
+            }
+          });
       }
     }
   }, [store])
@@ -130,6 +139,11 @@ export const Root = observer(() => {
 
   useEffect(() => {
     const load = flowResult(loader.loadConfig())
+    load.catch((error) => {
+      if (!isFlowCancellationError(error)) {
+        throw error;
+      }
+    });
     return () => load.cancel();
   }, [loader]);
 
@@ -250,7 +264,7 @@ const List = observer((props: {
 })
 
 const SmallProcessStatusIndicator = observer((props: { status: ProcessState }) => {
-  const errored = props.status.status === 'dead' && props.status.code !== 0;
+  const errored = props.status.status === 'dead' // && props.status !== 0;
 
   const icon: string = match(props.status)
     .with({ state: 'starting' }, () => '◯')

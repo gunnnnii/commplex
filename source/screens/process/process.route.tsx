@@ -45,11 +45,11 @@ export const Process = observer(() => {
 
   useInput((input, key) => {
     if (key.return) {
-      process.start();
+      process.connect();
     }
 
     if (input === 'q') {
-      process.kill();
+      process.disconnect();
     }
   });
 
