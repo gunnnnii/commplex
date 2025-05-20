@@ -17,7 +17,7 @@
 		"dist"
 	],
 	"dependencies": {
-		"ink": "github:gunnnnii/ink",
+		"ink": "github:gunnnnii/ink#master",
 		"mobx": "^6.13.7",
 		"mobx-react-lite": "^4.1.0",
 		"package-up": "^5.0.0",

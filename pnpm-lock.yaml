@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       ink:
-        specifier: github:gunnnnii/ink
-        version: https://codeload.github.com/gunnnnii/ink/tar.gz/95b8b38cefac34ae51b1fcde5ab6d75808e051d5(@types/react@18.3.21)(react@18.3.1)
+        specifier: github:gunnnnii/ink#master
+        version: https://codeload.github.com/gunnnnii/ink/tar.gz/533a26da820adb4f78f8e8d0efabd1a2e969b825(@types/react@18.3.21)(react@18.3.1)
       mobx:
         specifier: ^6.13.7
         version: 6.13.7
@@ -718,8 +718,8 @@ packages:
       '@types/react':
         optional: true
 
-  ink@https://codeload.github.com/gunnnnii/ink/tar.gz/95b8b38cefac34ae51b1fcde5ab6d75808e051d5:
-    resolution: {tarball: https://codeload.github.com/gunnnnii/ink/tar.gz/95b8b38cefac34ae51b1fcde5ab6d75808e051d5}
+  ink@https://codeload.github.com/gunnnnii/ink/tar.gz/533a26da820adb4f78f8e8d0efabd1a2e969b825:
+    resolution: {tarball: https://codeload.github.com/gunnnnii/ink/tar.gz/533a26da820adb4f78f8e8d0efabd1a2e969b825}
     version: 5.2.1
     engines: {node: '>=18'}
     peerDependencies:
@@ -1558,7 +1558,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 18.3.21
 
-  ink@https://codeload.github.com/gunnnnii/ink/tar.gz/95b8b38cefac34ae51b1fcde5ab6d75808e051d5(@types/react@18.3.21)(react@18.3.1):
+  ink@https://codeload.github.com/gunnnnii/ink/tar.gz/533a26da820adb4f78f8e8d0efabd1a2e969b825(@types/react@18.3.21)(react@18.3.1):
     dependencies:
       '@alcalzone/ansi-tokenize': 0.1.3
       ansi-escapes: 7.0.0
