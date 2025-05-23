@@ -71,7 +71,6 @@ class MessageView {
 
 const PADDING = Symbol('padding');
 type PADDING = typeof PADDING;
-
 class LogView {
   @observable accessor process: Process;
   @observable accessor #width: number;
@@ -79,10 +78,10 @@ class LogView {
   @observable accessor #offset: number;
 
   constructor(props: {
-    process: Process,
-    height?: number,
-    offset?: number,
-    width?: number,
+    process: Process;
+    height?: number;
+    offset?: number;
+    width?: number;
   }) {
     this.process = props.process;
     this.#height = props.height ?? 0;
@@ -97,19 +96,19 @@ class LogView {
 
     untracked(() => {
       view = this.#messageViewCache.get(message);
-    })
+    });
 
     if (view == null) {
       view = new MessageView(message);
       runInAction(() => {
         // biome-ignore lint/style/noNonNullAssertion: this runs synchronously, so we can safely assume that the message is valid
         this.#messageViewCache.set(message, view!);
-      })
+      });
     }
 
     runInAction(() => {
       view?.setWidth(this.width);
-    })
+    });
 
     return view;
   }
@@ -119,26 +118,33 @@ class LogView {
 
     untracked(() => {
       length = this.process.messages.length;
-    })
-
-    logProcess(this.process, `message length: ${length}`)
+    });
 
     return length;
   }
 
-  #getFirstVisisbleMessageFromZero(): { index: number, relativeLineIndex: number, absoluteLineIndex: number } {
+  #getFirstVisibleMessage(): {
+    index: number;
+    relativeLineIndex: number;
+    absoluteLineIndex: number;
+  } {
     /*
     do not access this.process.messages.length in here, as this will cause the index to be invalidated when additional messages are added
     even though the 
     */
-    if (0 >= this.#start) {
-      return { index: 0, relativeLineIndex: this.#start, absoluteLineIndex: this.#start };
+    if (0 >= this.#offset) {
+      return {
+        index: 0,
+        relativeLineIndex: this.#offset,
+        absoluteLineIndex: this.#offset,
+      };
     }
 
     let total = 0;
     const totalMessages = this.#getMessageListLengthUntracked();
 
     let lastMessageLength = 0;
+
     for (let index = 0; index < totalMessages; index++) {
       // biome-ignore lint/style/noNonNullAssertion: we are sure that the index is valid
       const message = this.process.messages.at(index)!;
@@ -149,16 +155,24 @@ class LogView {
 
       lastMessageLength = lines;
 
-      if (total >= this.#start) {
-        const diff = Math.abs(this.#start - total);
+      if (total >= this.#offset) {
+        const diff = Math.abs(this.#offset - total);
         const firstVisisbleLineIndex = lines - diff;
         const absoluteLineIndex = prevTotal + firstVisisbleLineIndex;
-        return { index, relativeLineIndex: firstVisisbleLineIndex, absoluteLineIndex };
+        return {
+          index,
+          relativeLineIndex: firstVisisbleLineIndex,
+          absoluteLineIndex,
+        };
       }
     }
 
-    const lastMessageOvershotIndex = lastMessageLength + this.#start - total;
-    return { index: totalMessages - 1, relativeLineIndex: lastMessageOvershotIndex, absoluteLineIndex: total };
+    const lastMessageOvershotIndex = lastMessageLength + this.#offset - total;
+    return {
+      index: totalMessages - 1,
+      relativeLineIndex: lastMessageOvershotIndex,
+      absoluteLineIndex: total,
+    };
   }
 
   @computed
@@ -167,8 +181,12 @@ class LogView {
   }
 
   @computed
-  get firstVisibleMessage(): { index: number, relativeLineIndex: number, absoluteLineIndex: number } {
-    return this.#getFirstVisisbleMessageFromZero();
+  get firstVisibleMessage(): {
+    index: number;
+    relativeLineIndex: number;
+    absoluteLineIndex: number;
+  } {
+    return this.#getFirstVisibleMessage();
   }
 
   @computed
@@ -184,20 +202,18 @@ class LogView {
 
   @computed
   get length() {
+    void this.#width;
     let sum = 0;
     for (const message of this.process.messages) {
       const view = this.#getMessageView(message);
-      sum += view.lines.length
+      sum += view.lines.length;
     }
-
-    logProcess(this.process, `message length: ${sum}`)
 
     return sum;
   }
 
-  *iterateLinesForwards(start = 0) {
+  *iterateLines(start = 0) {
     let padding = start * -1;
-
     while (padding-- > 0) {
       yield PADDING;
     }
@@ -206,14 +222,19 @@ class LogView {
     const firstMessageIndex = this.firstVisibleMessage.index;
 
     let linesToSkip = this.firstVisibleMessage.relativeLineIndex;
-    for (let index = firstMessageIndex; index < totalMessages; index++) {
+
+    for (
+      let index = firstMessageIndex;
+      index >= 0 && index < totalMessages;
+      index++
+    ) {
       // biome-ignore lint/style/noNonNullAssertion: we are sure that the index is valid
       const message = this.process.messages.at(index)!;
       const view = this.#getMessageView(message);
       const lines = view.lines;
 
       for (const line of lines) {
-        if (linesToSkip-- > 0) continue;
+        if (--linesToSkip > 0) continue;
         yield { content: line, message };
       }
     }
@@ -227,58 +248,16 @@ class LogView {
     }
   }
 
-  *iterateLinesBackwards(start = 0) {
-    let padding = start - this.firstVisibleMessage.absoluteLineIndex;
-
-    if (padding >= 0) {
-      // if padding is positive, we are at the end of the log,
-      // so access the messages length to trigger updates if new messages are added
-      void this.process.messages.length;
-    }
-
-    while (padding-- > 0) {
-      yield PADDING;
-    }
-
-    const firstMessageIndex = this.firstVisibleMessage.index;
-
-    let linesToSkip = -1;
-    for (let index = firstMessageIndex; index >= 0; index--) {
-      // biome-ignore lint/style/noNonNullAssertion: we are sure that the index is valid
-      const message = this.process.messages.at(index)!;
-      const view = this.#getMessageView(message);
-      const lines = view.lines.toReversed();
-
-      if (index === firstMessageIndex) {
-        linesToSkip = lines.length - this.firstVisibleMessage.relativeLineIndex;
-      }
-
-      for (const line of lines) {
-        if (0 >= linesToSkip--) {
-          yield { content: line, message };
-        }
-      }
-    }
-
-    while (true) {
-      yield PADDING;
-    }
-  }
-
   @computed
   get #lines(): { lines: (Line | PADDING)[] } {
-    const start = this.#start;
-    const total = Math.abs(this.#end - start);
-
-    if (this.direction === 'backwards') {
-      // access an extra line on either end to check if there are more lines
-      const lines: (Line | PADDING)[] = take(this.iterateLinesBackwards(start + 1), total + 1)
-      return { lines: lines };
-    }
-
+    const prebuffer = 1;
+    const postbuffer = 1;
     // access an extra line on either end to check if there are more lines
-    const lines: (Line | PADDING)[] = take(this.iterateLinesForwards(start - 1), total + 1)
-    return { lines: lines };
+    const lines: (Line | PADDING)[] = take(this.iterateLines(
+      this.#offset - prebuffer
+    ), prebuffer + this.#height + postbuffer);
+
+    return { lines };
   }
 
   @computed
@@ -288,20 +267,23 @@ class LogView {
 
     const messages: (Message | PADDING)[] = [];
 
-    logProcess(this.process, `${this.#width} ${this.#height} ${this.#offset} ${this.#getMessageListLengthUntracked()} ${this.length}`);
     for (const line of lines) {
       if (line === PADDING) {
         messages.push(line);
       } else {
         const lastMessage = messages.at(-1);
 
-        if (lastMessage != null && lastMessage !== PADDING && line.message.id === lastMessage?.id) {
-          lastMessage.content += '\n'
+        if (
+          lastMessage != null &&
+          lastMessage !== PADDING &&
+          line.message.id === lastMessage?.id
+        ) {
+          lastMessage.content += '\n';
           lastMessage.content += line.content;
         } else {
           messages.push({ ...line.message, content: line.content });
         }
-      };
+      }
     }
 
     return { messages };
@@ -317,7 +299,7 @@ class LogView {
   }
 
   get width() {
-    return this.#width
+    return this.#width;
   }
 
   @action
@@ -327,38 +309,28 @@ class LogView {
 
       this.#height = height;
       this.#offset += diff;
-    })
+    });
   }
 
   get height() {
-    return this.#height
+    return this.#height;
   }
 
   get offset() {
-    return this.#offset
-  }
-
-  @action
-  setDimensions({ width, height }: { width: number, height: number }) {
-    transaction(() => {
-      this.#width = width;
-      this.#height = height;
-    })
-  }
-
-  get #start() {
-    if (0 > this.#height) {
-      return this.#height + this.#offset;
-    }
-
     return this.#offset;
   }
 
-  get #end() {
-    if (0 > this.#height) {
-      return this.#offset;
-    }
-    return this.#height + this.#offset;
+  @action
+  setDimensions({ width, height }: { width: number; height: number }) {
+    transaction(() => {
+      this.#width = width;
+      this.#height = height;
+    });
+  }
+
+  @action
+  setOffset(offset: number) {
+    this.#offset = offset;
   }
 
   #trackerController = new AbortController();
@@ -373,70 +345,31 @@ class LogView {
   }
 
   @action
-  scrollToEnd() {
-    transaction(() => {
-      if (this.lines.messages.length === 0) return;
-
-      if (this.direction === 'forwards') {
-        while (this.hasNextLines) {
-          this.#offset++;
-        }
-
-        // while (this.lines.messages.at(-1) === PADDING) {
-        //   this.#offset++;
-        // }
-      }
-
-      if (this.direction === 'backwards') {
-        while (this.hasPreviousLines) {
-          this.#offset--;
-        }
-      }
-    })
-  }
-
-  @action
   scrollToTop() {
-    if (this.direction === 'backwards') {
-      const totalMessages = this.#getMessageListLengthUntracked();
-      let totalLines = 0;
-
-      for (let index = 0; index < totalMessages; index++) {
-        // biome-ignore lint/style/noNonNullAssertion: <explanation>
-        const message = this.process.messages.at(index)!;
-        const lines = calculateMessageLines(message, this.width).length;
-        totalLines += lines;
-      }
-
-      this.#offset = -Math.max(0, totalLines - Math.abs(this.#height));
-    } else {
-      this.#offset = 0;
-    }
+    this.#offset = 0;
   }
 
   @action
   scrollToBottom() {
-    if (this.direction === 'backwards') {
-      this.#offset = 0;
-    } else {
-      const totalMessages = this.#getMessageListLengthUntracked();
-      let totalLines = 0;
-
-      for (let index = 0; index < totalMessages; index++) {
-        // biome-ignore lint/style/noNonNullAssertion: <explanation>
-        const message = this.process.messages.at(index)!;
-        const lines = calculateMessageLines(message, this.width).length;
-        totalLines += lines;
-      }
-
-      this.#offset = Math.max(0, totalLines - this.#height);
-    }
+    this.#offset = this.length - this.#height;
   }
 
-  track() {
-    return reaction(() => [this.direction, this.offset, this.width, this.height, this.hasNextLines, this.hasPreviousLines], () => {
-      runInAction(() => this.scrollToBottom());
-    }, { signal: this.#trackerController.signal, fireImmediately: true })
+  track(onScroll?: (offset: number) => void) {
+    return reaction(
+      () => [
+        this.direction,
+        this.offset,
+        this.width,
+        this.height,
+        this.hasNextLines,
+        this.hasPreviousLines,
+      ],
+      () => {
+        runInAction(() => this.scrollToBottom());
+        onScroll?.(this.offset);
+      },
+      { signal: this.#trackerController.signal, fireImmediately: true }
+    );
   }
 }
 
