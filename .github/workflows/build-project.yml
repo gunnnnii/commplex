@@ -34,11 +34,24 @@ jobs:
       - name: Build package
         run: pnpm build
 
-      - name: Create ZIP
-        run: zip -r commplex-bundle.zip dist
+  publish:
+    if: github.ref_type == 'tag'
+    environment: production
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22]
+    steps:
+    - name: Create ZIP
+      run: zip -r commplex-bundle.zip dist
 
-      - name: Upload to release
-        uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'tag'
-        with:
-          files: commplex-bundle.zip
+    - name: Upload to release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: commplex-bundle.zip
+
+    - name: Authenticate npm
+      run: npm config set //registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
+    - name: Publish package
+      working-directory: ./dist
+      run: npm publish
