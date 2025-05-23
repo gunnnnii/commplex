@@ -68,5 +68,5 @@ pnpm i && pnpm dev
 this will start vite in watch mode. you can then start the locally running project just like you would the deployed version
 
 ```bash
-npx /path/to/commplex
+npx /path/to/commplex/dist
 ```
