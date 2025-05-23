@@ -1,6 +1,6 @@
 import { useContext } from 'react';
-import { Box, Text, useInput, } from 'ink';
-import { Outlet, useNavigate, useParams } from 'react-router';
+import { Box, Text, } from 'ink';
+import { Outlet, useParams } from 'react-router';
 import { match } from 'ts-pattern';
 import { observer } from 'mobx-react-lite';
 import type { ProcessState } from '../../models/process/process.js';
@@ -27,7 +27,6 @@ const StatusIndicator = observer((props: { status: ProcessState }) => {
 
 export const ProcessLayout = observer(() => {
   const params = useParams<"process">();
-  const navigate = useNavigate();
   // biome-ignore lint/style/noNonNullAssertion: <explanation>
   const processName = decodeURIComponent(params.process!);
 
@@ -40,24 +39,6 @@ export const ProcessLayout = observer(() => {
 
   const command = process.script;
   const status = process.state
-
-  useInput((input, key) => {
-    if (key.return) {
-      process.connect();
-    }
-
-    if (input === 'q') {
-      process.disconnect();
-    }
-
-    if (input === 'd') {
-      navigate(`${processName}/docs`);
-    }
-
-    if (input === 'b') {
-      navigate(-1)
-    }
-  });
 
   return (
     <Box flexGrow={1} flexDirection='column' gap={0}>

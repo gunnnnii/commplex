@@ -1,10 +1,10 @@
 import { Box, Spacer, Text, useInput } from "ink";
 import { useContext, useEffect, useState, type ComponentProps, type PropsWithChildren } from "react";
-import { Outlet, useNavigate, useParams } from "react-router";
+import { Outlet, useLocation, useMatch, useNavigate, useParams } from "react-router";
 import type { Script } from "../models/process/script.js";
 import { useRows } from "../utilities/hooks/dimensions.js";
 import { ErrorBoundary } from "react-error-boundary";
-import { match, P } from "ts-pattern";
+import { match } from "ts-pattern";
 import { observer } from 'mobx-react-lite'
 import type { Process, ProcessState } from "../models/process/process.js";
 import { ProcessStore, ProcessStoreContext, ProcessStoreProvider, } from "../models/process/store.js";
@@ -126,16 +126,34 @@ export const LoadedRoot = observer((props: { loader: ConfigLoader }) => {
     }
   }, [store])
 
+  const location = useLocation();
+
   return (
     <ProcessStoreProvider store={store}>
       <Box paddingY={1} paddingRight={1} gap={1} flexGrow={1} minHeight={rows} height={rows} overflowY='hidden'>
         <Sidebar>
           <ScriptList scripts={scripts} />
           <Spacer />
-          <Box borderTop borderBottom={false} borderLeft={false} borderRight={false} borderStyle="single" flexDirection='column' gap={0}>
-            <Text>kill: q</Text>
-            <Text>restart: [return]</Text>
+          <Box
+            borderTop
+            borderBottom={false}
+            borderLeft={false}
+            borderRight={false}
+            borderStyle="single"
+            flexDirection='column'
+            gap={0}
+            minWidth={30}
+          >
+            <Box><Text>kill:</Text><Spacer /><Text>q</Text></Box>
+            <Box><Text>restart:</Text><Spacer /><Text>⏎</Text></Box>
+            <Box><Text>open docs:</Text><Spacer /><Text>d</Text></Box>
           </Box>
+          {import.meta.env.MODE === 'development' ? (
+            <>
+              <Box height={1} />
+              <Text>{location.pathname}</Text>
+            </>
+          ) : null}
         </Sidebar>
         <Box flexGrow={1}>
           <Outlet />
@@ -160,6 +178,7 @@ export const Root = observer(() => {
         throw error;
       }
     });
+
     return () => load.cancel();
   }, [loader]);
 
@@ -168,60 +187,89 @@ export const Root = observer(() => {
   return <LoadedRoot loader={loader} />
 });
 
+const getScore = (process: Process) => {
+  let multiplier = 1;
+  if (process.type === 'task') multiplier *= 10;
+  if (process.type === 'script') multiplier *= 100;
+
+  switch (process.state.status) {
+    case 'dead':
+      return 2 * multiplier
+    case 'alive':
+      return 1 * multiplier
+  }
+}
+
 const sortProcesses = (a: Process, b: Process) => {
-  const stateA = a.state;
-  const stateB = b.state;
+  const scoreA = getScore(a);
+  const scoreB = getScore(b);
 
-  if (a.type === "script" && b.type === "script") {
-    return a.name.localeCompare(b.name)
+  if (scoreA !== scoreB) {
+    return scoreA - scoreB;
   }
 
-  if (a.type !== b.type) {
-    return a.type === 'script' ? 1 : -1;
-  }
-
-  return match([stateA, stateB])
-    .with([{ status: 'dead' }, P.not({ status: 'dead' })], () => 1)
-    .with([P.not({ status: 'dead' }), { status: 'dead' }], () => -1)
-    .otherwise(() => a.name.localeCompare(b.name))
+  return a.name.localeCompare(b.name);
 }
 
 const ScriptList = observer((props: { scripts: Script[] }) => {
   const { scripts } = props;
 
+  const { process: activeProcess } = useParams<"process">();
   const navigate = useNavigate();
-  const [selectedScriptIndex, setSelectedCommandIndex] = useState(0);
-
-  useInput((_input, key) => {
-    if (key.upArrow) {
-      setSelectedCommandIndex(previous => {
-        const next = (previous - 1 + scripts.length) % scripts.length;
-        return Math.abs(next);
-      })
-    }
-
-    if (key.downArrow) {
-      setSelectedCommandIndex(previous => {
-        const next = ((previous + 1) % scripts.length)
-        return Math.abs(next);
-      })
-    }
-  });
 
   const store = useContext(ProcessStoreContext);
   const processes = Array.from(store.processes.values())
     .sort(sortProcesses);
 
-  const selectedCommand = processes.at(selectedScriptIndex);
-
   const { service: serviceList = [], script: scriptList = [], task: taskList = [] } = groupBy(processes, (process) => process.type);
 
-  useEffect(() => {
-    if (selectedCommand?.name) {
-      const name = encodeURIComponent(selectedCommand.name);
-      navigate(`process/${name}`);
+  useInput((_input, key) => {
+    const previous = processes.findIndex(process => process.name === activeProcess) ?? -1;
+
+    if (key.upArrow) {
+      const nextIdx = (previous - 1 + scripts.length) % processes.length;
+      const next = processes.at(nextIdx);
+
+      if (next) {
+        const name = encodeURIComponent(next.name);
+        navigate(`process/${name}`);
+      }
     }
-  }, [navigate, selectedCommand?.name]);
+
+    if (key.downArrow) {
+      const nextIdx = ((previous + 1) % processes.length);
+      const next = processes.at(nextIdx);
+
+      if (next) {
+        const name = encodeURIComponent(next.name);
+        navigate(`process/${name}`);
+      }
+    }
+  });
+
+  const isOnDocPage = useMatch("process/:process/docs")
+
+  useInput((input, key) => {
+    const process = processes.find(process => process.name === activeProcess);
+
+    if (process == null) return;
+
+    if (key.return) {
+      process.connect();
+    }
+
+    if (input === 'q') {
+      process.disconnect();
+    }
+
+    if (input === 'd' && process.docs?.content) {
+      if (isOnDocPage) {
+        navigate(-1);
+      } else {
+        navigate(`process/${process.name}/docs`);
+      }
+    }
+  })
 
   return (
     <Box flexDirection="column" gap={1}>
@@ -229,22 +277,23 @@ const ScriptList = observer((props: { scripts: Script[] }) => {
         <List
           Indicator={SmallProcessStatusIndicator}
           processes={serviceList}
-          isItemSelected={(index) => selectedScriptIndex === index}
+          isItemSelected={(process) => process.name === activeProcess}
         />
       ) : null}
       {taskList.length > 0 ? (
         <List
+          title="Tasks"
           Indicator={SmallProcessStatusIndicator}
           processes={taskList}
-          isItemSelected={(index) => selectedScriptIndex === index}
+          isItemSelected={(process) => process.name === activeProcess}
         />
       ) : null}
       {scriptList.length > 0 ? (
         <List
-          title="Scripts"
+          title="Package Scripts"
           Indicator={SmallScriptStatusIndicator}
           processes={scriptList}
-          isItemSelected={(index) => selectedScriptIndex === index + serviceList.length}
+          isItemSelected={(process) => process.name === activeProcess}
         />
       ) : null}
     </Box>
@@ -253,22 +302,22 @@ const ScriptList = observer((props: { scripts: Script[] }) => {
 
 const List = observer((props: {
   title?: string; processes: Process[],
-  isItemSelected: (index: number) => boolean,
+  isItemSelected: (item: Process, index: number) => boolean,
   Indicator?: (props: { status: ProcessState }) => JSX.Element,
 }) => {
   return (
     <Box flexDirection="column">
       {props.title ? <Text>{props.title}</Text> : null}
-      {props.processes.map((script, index) =>
+      {props.processes.map((process, index) =>
       (
         <>
           <Text
-            key={script.name}
+            key={process.name}
           >
-            {props.Indicator != null ? <props.Indicator status={script.state} /> : null}
+            {props.Indicator != null ? <props.Indicator status={process.state} /> : null}
             <Text>{" "}</Text>
-            <Text underline={props.isItemSelected(index)}>
-              <ScriptListItem name={script.name} />
+            <Text underline={props.isItemSelected(process, index)}>
+              <ScriptListItem name={process.name} />
             </Text>
           </Text>
         </>

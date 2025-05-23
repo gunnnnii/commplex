@@ -6,6 +6,7 @@ import { observerBatching } from 'mobx-react-lite'
 import { ProcessLayout } from './screens/process/process.layout.js'
 import { LogsRoute } from './screens/process/logs/logs.route.js'
 import { DocsRoute } from './screens/process/docs/docs.route.js'
+import { log, logPath } from './utilities/logging/logger.js'
 
 observerBatching(batchedUpdates);
 
@@ -17,11 +18,13 @@ process.on('exit', () => {
 	process.stdout.write(leaveAltScreenCommand)
 })
 
+log("starting commplex log\n");
+log(`logs stored at ${logPath}\n`);
+
 render(
 	<MemoryRouter>
 		<Routes>
 			<Route path="/" Component={Root}>
-				<Route index element={<Text>Welcome to commplex</Text>} />
 				<Route path="process" element={
 					<ErrorBoundary FallbackComponent={PrintedError}>
 						<ProcessLayout />
@@ -30,6 +33,7 @@ render(
 					<Route path=":process" index element={<LogsRoute />} />
 					<Route path=":process/docs" element={<DocsRoute />} />
 				</Route>
+				<Route index path="/*" element={<Text>Commplex</Text>} />
 			</Route>
 		</Routes>
 	</MemoryRouter>,

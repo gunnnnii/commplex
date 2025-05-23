@@ -6,7 +6,6 @@ import { observer } from 'mobx-react-lite';
 import { action, computed, observable, reaction, runInAction, transaction, untracked } from 'mobx';
 import type { Process } from '../../../models/process/process.js';
 import { match } from 'ts-pattern';
-import { log } from '../../../utilities/logging/logger.js';
 
 const enableMouseTracking = () => {
   process.stdout.write('\x1b[?1003h'); // all motion tracking
@@ -455,7 +454,6 @@ export const Logs = observer((props: PropsWithChildren<{ process: Process }>) =>
         flexGrow={1}
         justifyContent='flex-end'
       >
-        {/* <Text>{props.process.name} {view.length} {props.process.messages.length} {view.offset}</Text> */}
         <LogViewPrint view={view} />
       </Box>
       <Scrollbar view={view} />
@@ -497,10 +495,6 @@ const LogViewPrint = observer((props: { view: LogView }) => {
       .otherwise((message) => <Text key={message.id} wrap='wrap'>{message.content}</Text>)
   })
 
-  useEffect(() => {
-    logProcess(props.view.process, `rendering lines: ${lines.filter(Boolean).length}`)
-  }, [lines, props.view])
-
   return lines;
 })
 
@@ -520,10 +514,4 @@ function take<T>(iterator: Iterator<T>, n: number): T[] {
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
-}
-
-function logProcess(process: Process, ...messages: string[]) {
-  if (process.name === "watch_logs") return;
-
-  log(`[${process.name}] ${messages.join(' ')}`);
 }

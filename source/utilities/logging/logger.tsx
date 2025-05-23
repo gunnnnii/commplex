@@ -7,8 +7,6 @@ const __dirname = path.dirname(__filename);
 const logStream = fs.createWriteStream(path.join(__dirname, 'commplex.log'), { flags: 'a' });
 
 export const logPath = logStream.path;
-logStream.write("starting commplex log\n");
-logStream.write(`logs stored at ${logPath}\n`);
 
 export const log = (...args: string[]) => {
   const message = `${args.join(' ')}\n`;

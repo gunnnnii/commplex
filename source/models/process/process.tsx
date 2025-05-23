@@ -4,6 +4,7 @@ import { createMessage, type Message } from "./message.js";
 import type { Script } from "./script.js";
 import { match } from "ts-pattern";
 import type { CancellablePromise } from "mobx/dist/internal.js";
+import { Doc } from "./doc.js";
 
 export type ProcessState =
 	| { status: "dead"; state: "closing" | "closed" }
@@ -52,12 +53,17 @@ export class Process {
 	readonly script: Script["script"];
 	readonly autostart: Script["autostart"];
 	readonly type: Script["type"];
+	readonly docs?: Doc;
 
 	constructor(script: Script) {
 		this.name = script.name;
 		this.script = script.script;
 		this.autostart = script.autostart;
 		this.type = script.type;
+
+		if (script.docs) {
+			this.docs = new Doc(this, script.docs);
+		}
 	}
 
 	// private property fails to bind to the class instance
