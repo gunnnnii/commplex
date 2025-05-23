@@ -1,7 +1,13 @@
 name: Publish npm package
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish'
+        required: true
+        default: '0.0.0'
+  # release:
+    # types: [published]
 jobs:
   publish:
     environment: production
@@ -10,32 +16,10 @@ jobs:
       matrix:
         node-version: [22]
     steps:
-    - name: Get release assets
-      run: |
-        echo '${{ toJson(github.event.release.assets) }}' > assets.json
-
-        asset_url=$(jq -r '.[] | select(.name | "commplex-bundle.zip") | .url' assets.json)
-        asset_name=$(jq -r '.[] | select(.name | "commplex-bundle.zip")) | .name' assets.json)
-
-        if [ -z "$asset_url" ]; then
-          echo "No .zip asset found in release."
-          cat assets.json
-          exit 1
-        fi
-
-        echo "Found asset: $asset_name"
-        echo "Downloading from: $asset_url"
-
-        curl -L -H "Authorization: token {{ github.token }}" \
-              -H "Accept: application/octet-stream" \
-              "$asset_url" -o "$asset_name"
-
-    - name: Unzip bundle
-      run: |
-        unzip "$asset_name"
-        DIR=$(unzip -Z1 *.zip | head -1 | cut -d/ -f1)
-        echo "Detected directory: $DIR"
-        echo "DIR=$DIR" >> $GITHUB_ENV
+    - name: Download artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: commplex-bundle
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -44,9 +28,8 @@ jobs:
         registry-url: 'https://registry.npmjs.org'
 
     - name: Authenticate npm
-      working-directory: ${{ env.DIR }}
       run: npm config set //registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
 
     - name: Publish package
-      working-directory: ${{ env.DIR }}
+      working-directory: ./dist
       run: npm publish
