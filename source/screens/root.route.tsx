@@ -1,7 +1,7 @@
 import { Box, Spacer, Text, useInput } from "ink";
 import { useContext, useEffect, useState, type ComponentProps, type PropsWithChildren } from "react";
 import { Outlet, useNavigate, useParams } from "react-router";
-import { Script } from "../models/process/script.js";
+import type { Script } from "../models/process/script.js";
 import { useRows } from "../utilities/hooks/dimensions.js";
 import { ErrorBoundary } from "react-error-boundary";
 import { match, P } from "ts-pattern";
@@ -11,14 +11,13 @@ import { ProcessStore, ProcessStoreContext, ProcessStoreProvider, } from "../mod
 import { flow, flowResult, isFlowCancellationError, observable } from "mobx";
 import { readFile } from "node:fs/promises";
 import { packageUp } from "package-up";
-import { z } from "zod";
 import { groupBy, mapValues, values } from "remeda";
+import { log, logPath } from "../utilities/logging/logger.js";
+import { CommplexConfig } from "../models/config/config.js";
 
-const commplexConfig = z.record(Script.omit({ name: true }))
-type commplexConfig = z.infer<typeof commplexConfig>
 
-function collectCommands(input: commplexConfig): Script[] {
-  const processes = mapValues(input, (value, key) => ({ name: key, ...value }))
+function collectCommands(input: CommplexConfig): Script[] {
+  const processes = mapValues(input.scripts, (value, key) => ({ name: key, ...value }))
 
   return values(processes)
 }
@@ -42,21 +41,36 @@ class ConfigLoader {
         process.exit(1)
       } else {
         const pkg: Record<string, unknown> = yield readFile(pkgPath, 'utf-8').then(JSON.parse);
+        const hasNoConfig = pkg.commplex == null || typeof pkg.commplex !== 'object';
 
-        const config = commplexConfig.parse(pkg.commplex ?? {})
-
+        const config = CommplexConfig.parse(pkg.commplex ?? {})
         const scripts = collectCommands(config);
-        if ('scripts' in pkg && pkg.scripts != null && typeof pkg.scripts === 'object') {
-          const pkgScripts = Object.entries(pkg.scripts)
-            .map(([name, script]) => ({
-              name,
-              script,
-              autostart: false,
-              type: 'script' as const,
-            }));
 
-          scripts.push(...pkgScripts)
+        if (hasNoConfig || config.includePackageScripts) {
+          if ('scripts' in pkg && pkg.scripts != null && typeof pkg.scripts === 'object') {
+            const pkgScripts = Object.entries(pkg.scripts)
+              .map(([name, script]) => ({
+                name,
+                script,
+                autostart: false,
+                type: 'script' as const,
+              }));
+
+            setTimeout(() => {
+              log(JSON.stringify(pkgScripts, null, 2))
+            }, 5000)
+
+            scripts.push(...pkgScripts)
+          }
         }
+
+        // scripts.push({
+        //   autostart: true,
+        //   name: 'watch_logs',
+        //   script: `tail -f ${logPath}`,
+        //   type: 'service',
+        // })
+
         this.state = 'success'
         this.config = scripts;
 
@@ -201,10 +215,11 @@ const ScriptList = observer((props: { scripts: Script[] }) => {
   const { service: serviceList = [], script: scriptList = [], task: taskList = [] } = groupBy(processes, (process) => process.type);
 
   useEffect(() => {
-    if (selectedCommand) {
-      navigate(`/${selectedCommand.name}`);
+    if (selectedCommand?.name) {
+      const name = encodeURIComponent(selectedCommand.name);
+      navigate(`process/${name}`);
     }
-  }, [navigate, selectedCommand]);
+  }, [navigate, selectedCommand?.name]);
 
   return (
     <Box flexDirection="column" gap={1}>

@@ -9,7 +9,7 @@ const sourceEntry = path.resolve(__dirname, "source", `${entryFile}.tsx`);
 const distEntry = path.resolve(__dirname, "dist", `${entryFile}.js`);
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
 	build: {
 		target: "node22",
 		ssr: false,
@@ -27,7 +27,7 @@ export default defineConfig({
 				...builtinModules.map((mod) => `node:${mod}`),
 			],
 		},
-		minify: false,
+		minify: mode === "production",
 		emptyOutDir: true,
 	},
 	resolve: {
@@ -76,4 +76,4 @@ export default defineConfig({
 			},
 		},
 	],
-});
+}));

@@ -34,9 +34,20 @@ type Script = {
    * setting autostart will make commplex automatically start the process on startup
    */
   autostart?: boolean;
+
+  /**
+   * either a string with information about the script, or a path to a markdown file with information about the script
+   */
+  docs?: string;
 }
 
 type CommplexConfig = {
+  /**
+   * tells commplex to include scripts from package.json
+   * 
+   * defaults to true
+   */
+  includePackageScripts?: boolean
   scripts: {
     [name: string]: Script
   }

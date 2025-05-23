@@ -9,7 +9,7 @@
 	},
 	"scripts": {
 		"build": "tsc -b && vite build",
-		"dev": "vite build --watch",
+		"dev": "vite build --watch --mode development",
 		"start": "node dist/cli.js",
 		"test": "prettier --check . && xo && ava"
 	},
@@ -29,7 +29,7 @@
 		"strip-ansi": "^7.1.0",
 		"ts-pattern": "^5.7.0",
 		"wrap-ansi": "^9.0.0",
-		"zod": "^3.24.4"
+		"zod": "^3.25.7"
 	},
 	"devDependencies": {
 		"@babel/plugin-proposal-decorators": "^7.27.1",

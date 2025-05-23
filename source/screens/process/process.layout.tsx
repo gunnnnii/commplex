@@ -1,12 +1,11 @@
 #!/usr/bin/env node
-import { useContext } from 'react';
+import { useContext, useEffect } from 'react';
 import { Box, Text, useInput, } from 'ink';
-import { useParams } from 'react-router';
+import { Outlet, useNavigate, useParams } from 'react-router';
 import { match } from 'ts-pattern';
 import { observer } from 'mobx-react-lite';
 import type { ProcessState } from '../../models/process/process.js';
 import { ProcessStoreContext, } from '../../models/process/store.js';
-import { Logs } from './logs.js';
 
 const StatusIndicator = observer((props: { status: ProcessState }) => {
   return (
@@ -27,11 +26,11 @@ const StatusIndicator = observer((props: { status: ProcessState }) => {
   )
 })
 
-export const Process = observer(() => {
+export const ProcessLayout = observer(() => {
   const params = useParams<"process">();
-
+  const navigate = useNavigate();
   // biome-ignore lint/style/noNonNullAssertion: <explanation>
-  const processName = params.process!;
+  const processName = decodeURIComponent(params.process!);
 
   const store = useContext(ProcessStoreContext);
   const process = store.processes.get(processName);
@@ -51,6 +50,14 @@ export const Process = observer(() => {
     if (input === 'q') {
       process.disconnect();
     }
+
+    if (input === 'd') {
+      navigate(`${processName}/docs`);
+    }
+
+    if (input === 'b') {
+      navigate(-1)
+    }
   });
 
   return (
@@ -65,8 +72,9 @@ export const Process = observer(() => {
         flexDirection='column'
         justifyContent='flex-end'
       >
-        <Logs key={process.name} process={process} />
+        <Outlet />
       </Box>
     </Box>
   )
 })
+

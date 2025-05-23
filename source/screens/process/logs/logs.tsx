@@ -1,12 +1,12 @@
-#!/usr/bin/env node
 import { useEffect, useLayoutEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { Box, measureElement, Text, useStdin, useStdout, type DOMElement, } from 'ink';
-import type { Message } from '../../models/process/message.js';
+import type { Message } from '../../../models/process/message.js';
 import wrapAnsi from 'wrap-ansi';
 import { observer } from 'mobx-react-lite';
 import { action, computed, observable, reaction, runInAction, transaction, untracked } from 'mobx';
-import type { Process } from '../../models/process/process.js';
+import type { Process } from '../../../models/process/process.js';
 import { match } from 'ts-pattern';
+import { log } from '../../../utilities/logging/logger.js';
 
 const enableMouseTracking = () => {
   process.stdout.write('\x1b[?1003h'); // all motion tracking
@@ -101,12 +101,15 @@ class LogView {
 
     if (view == null) {
       view = new MessageView(message);
-      view.setWidth(this.width);
       runInAction(() => {
         // biome-ignore lint/style/noNonNullAssertion: this runs synchronously, so we can safely assume that the message is valid
         this.#messageViewCache.set(message, view!);
       })
     }
+
+    runInAction(() => {
+      view?.setWidth(this.width);
+    })
 
     return view;
   }
@@ -117,6 +120,8 @@ class LogView {
     untracked(() => {
       length = this.process.messages.length;
     })
+
+    logProcess(this.process, `message length: ${length}`)
 
     return length;
   }
@@ -175,6 +180,19 @@ class LogView {
   @computed
   get hasPreviousLines() {
     return this.#lines.lines.at(0) !== PADDING;
+  }
+
+  @computed
+  get length() {
+    let sum = 0;
+    for (const message of this.process.messages) {
+      const view = this.#getMessageView(message);
+      sum += view.lines.length
+    }
+
+    logProcess(this.process, `message length: ${sum}`)
+
+    return sum;
   }
 
   *iterateLinesForwards(start = 0) {
@@ -270,6 +288,7 @@ class LogView {
 
     const messages: (Message | PADDING)[] = [];
 
+    logProcess(this.process, `${this.#width} ${this.#height} ${this.#offset} ${this.#getMessageListLengthUntracked()} ${this.length}`);
     for (const line of lines) {
       if (line === PADDING) {
         messages.push(line);
@@ -494,27 +513,62 @@ export const Logs = observer((props: PropsWithChildren<{ process: Process }>) =>
 
   return (
     <Box
-      ref={ref}
-      flexDirection='column'
+      flexDirection="row"
       flexGrow={1}
-      justifyContent='flex-end'
-      borderBottom={!view.hasNextLines}
-      borderStyle="single"
-      borderTop={false}
-      borderLeft={false}
-      borderRight={false}
     >
-      <LogViewPrint view={view} />
+      <Box
+        ref={ref}
+        flexDirection='column'
+        flexGrow={1}
+        justifyContent='flex-end'
+      >
+        {/* <Text>{props.process.name} {view.length} {props.process.messages.length} {view.offset}</Text> */}
+        <LogViewPrint view={view} />
+      </Box>
+      <Scrollbar view={view} />
+    </Box>
+  )
+})
+
+const Scrollbar = observer((props: { view: LogView }) => {
+  const height = Math.max(props.view.height, 1);
+
+  const maxOffset = Math.max(0, props.view.length - height - 1);
+  const offset = clamp(props.view.offset, 0, maxOffset);
+
+  const location = Math.floor((offset / maxOffset) * (height - 1));
+
+  const blocks = Array.from({ length: height }, (_, index) => (
+    index === location ? (
+      // biome-ignore lint/correctness/useJsxKeyInIterable: order of these doesn't matter
+      <Text>░</Text>
+    ) : (
+      // biome-ignore lint/correctness/useJsxKeyInIterable: order of these doesn't matter
+      <Text>█</Text>
+    )
+  ))
+  return (
+    <Box
+      flexDirection='column'
+      gap={0}
+    >
+      {blocks}
     </Box>
   )
 })
 
 const LogViewPrint = observer((props: { view: LogView }) => {
-  return props.view.lines.messages.map((message) => {
+  const lines = props.view.lines.messages.map((message) => {
     return match(message)
       .with(PADDING, () => null)
       .otherwise((message) => <Text key={message.id} wrap='wrap'>{message.content}</Text>)
   })
+
+  useEffect(() => {
+    logProcess(props.view.process, `rendering lines: ${lines.filter(Boolean).length}`)
+  }, [lines, props.view])
+
+  return lines;
 })
 
 function take<T>(iterator: Iterator<T>, n: number): T[] {
@@ -529,4 +583,14 @@ function take<T>(iterator: Iterator<T>, n: number): T[] {
     count++;
   }
   return result;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function logProcess(process: Process, ...messages: string[]) {
+  if (process.name === "watch_logs") return;
+
+  log(`[${process.name}] ${messages.join(' ')}`);
 }
