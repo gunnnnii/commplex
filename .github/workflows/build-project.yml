@@ -34,6 +34,13 @@ jobs:
       - name: Build package
         run: pnpm build
 
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        if: github.ref_type == 'tag'
+        with:
+          name: commplex-bundle
+          path: dist
+
   publish:
     needs: build
     if: github.ref_type == 'tag'
@@ -43,6 +50,11 @@ jobs:
       matrix:
         node-version: [22]
     steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: commplex-bundle
+        path: dist
     - name: Create ZIP
       run: zip -r commplex-bundle.zip dist
 
