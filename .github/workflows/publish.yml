@@ -34,14 +34,12 @@ jobs:
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
-        if: github.ref_type == 'tag'
         with:
           name: commplex-bundle
           path: dist
 
   publish:
     needs: build
-    if: github.ref_type == 'tag'
     environment: production
     runs-on: ubuntu-latest
     strategy:
