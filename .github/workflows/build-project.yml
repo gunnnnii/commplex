@@ -42,5 +42,3 @@ jobs:
         if: github.ref_type == 'tag'
         with:
           files: commplex-bundle.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
