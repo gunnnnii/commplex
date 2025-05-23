@@ -1,5 +1,4 @@
-#!/usr/bin/env node
-import { useContext, useEffect } from 'react';
+import { useContext } from 'react';
 import { Box, Text, useInput, } from 'ink';
 import { Outlet, useNavigate, useParams } from 'react-router';
 import { match } from 'ts-pattern';

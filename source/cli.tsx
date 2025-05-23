@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { batchedUpdates, render, Text } from 'ink'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { Root } from './screens/root.route.js'

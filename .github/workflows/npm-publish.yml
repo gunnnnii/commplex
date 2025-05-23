@@ -6,9 +6,8 @@ on:
         description: 'Version to publish'
         required: true
         default: '0.0.0'
-  push:
-    tags:
-      - 'v*.*.*'  # Matches version tags like v1.0.0
+  release:
+    types: [published]
 jobs:
   publish:
     environment: production
@@ -17,48 +16,21 @@ jobs:
       matrix:
         node-version: [22]
     steps:
-    - uses: actions/checkout@v4
+    - name: Download artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: commplex-bundle
+        path: dist
 
-    - name: Install pnpm
-      uses: pnpm/action-setup@v4
-
-    - name: Use Node.js ${{ matrix.node-version }}
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'pnpm'
+        node-version: '16'
+        registry-url: 'https://registry.npmjs.org'
 
-    - name: Install dependencies
-      run: pnpm install
-
-    - name: Build package
-      run: pnpm build
-
-    - name: Set publishing config
-      run: pnpm config set '//registry.npmjs.org/:_authToken' "${NODE_AUTH_TOKEN}"
-      env:
-        NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
-
-    - name: Prune dev dependencies
-      run: pnpm install --prod
+    - name: Authenticate npm
+      run: npm config set //registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
 
     - name: Publish package
-      run: pnpm publish --access public
-
-
-
-      # - name: Checkout code
-      #   uses: actions/checkout@v4
-      # - name: Set up Node.js
-      #   uses: actions/setup-node@v4
-      #   with:
-      #     node-version: '22'
-      #     registry-url: 'https://registry.npmjs.org/'
-      # - name: Setup pnpm
-      #   uses: pnpm/action-setup@v3
-      # - name: Build package
-      #   run: pnpm build
-      # - name: Publish package
-      #   run: npm publish
-      #   env:
-      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      working-directory: ./dist
+      run: npm publish

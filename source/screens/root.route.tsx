@@ -64,12 +64,14 @@ class ConfigLoader {
           }
         }
 
-        // scripts.push({
-        //   autostart: true,
-        //   name: 'watch_logs',
-        //   script: `tail -f ${logPath}`,
-        //   type: 'service',
-        // })
+        if (import.meta.env.MODE === 'development') {
+          scripts.push({
+            autostart: true,
+            name: 'watch_logs',
+            script: `tail -f ${logPath}`,
+            type: 'service',
+          })
+        }
 
         this.state = 'success'
         this.config = scripts;

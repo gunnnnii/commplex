@@ -1,8 +1,7 @@
 {
-	"name": "commplex",
-	"version": "0.0.4",
+	"name": "@gunnnnii/commplex-cli",
+	"version": "0.0.5",
 	"license": "MIT",
-	"bin": "dist/cli.js",
 	"type": "module",
 	"engines": {
 		"node": ">=22"
@@ -41,6 +40,7 @@
 		"chalk": "^5.4.1",
 		"ink-testing-library": "^3.0.0",
 		"prettier": "^2.8.7",
+		"type-fest": "^4.41.0",
 		"typescript": "^5.0.3",
 		"vite": "^6.3.5"
 	},
