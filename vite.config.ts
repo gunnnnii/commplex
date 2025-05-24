@@ -103,7 +103,7 @@ export default defineConfig(({ mode }) => {
 
 					const readmePath = path.join(outDir, "README.md");
 					await fs.copyFile(
-						path.resolve(__dirname, "README.md"),
+						path.resolve(process.cwd(), "README.md"),
 						readmePath
 					)
 				},
