@@ -270,7 +270,8 @@ const ScriptList = observer(() => {
       if (isOnDocPage) {
         navigate(-1);
       } else {
-        navigate(`process/${process.name}/docs`);
+        const name = encodeURIComponent(process.name);
+        navigate(`process/${name}/docs`);
       }
     }
   })

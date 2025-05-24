@@ -3,6 +3,7 @@ import { useContext } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ProcessStoreContext } from "../../../models/process/store";
 import { Text, useInput } from "ink";
+import { ScrollView } from "../../../models/scrollable/scroll-view";
 
 export const DocsRoute = observer(() => {
   const params = useParams<"process">();
@@ -24,7 +25,7 @@ export const DocsRoute = observer(() => {
 
   if (!process) throw new Error(`Process "${processName}" not found`);
 
-  const content = process.docs?.content;
+  const content = process.docs;
 
   if (!content) {
     return (
@@ -33,6 +34,6 @@ export const DocsRoute = observer(() => {
   }
 
   return (
-    <Text>{content}</Text>
+    <ScrollView content={content} />
   )
 })

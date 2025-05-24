@@ -2,12 +2,12 @@ import wrapAnsi from 'wrap-ansi';
 import { action, computed, observable, reaction, runInAction, transaction, untracked } from 'mobx';
 
 export interface Content { id: string; content: string };
-export interface ContentContainer { content: Content[] };
+export interface ScrollableContentContainer { content: Content[] };
 
 function calculateMessageLines(message: Content, width: number) {
   const splitMessage = wrapAnsi(message.content, width);
   const lines = splitMessage.split('\n');
-  lines.pop(); // an extra empty line is added for some reason 🤔
+  // lines.pop(); // an extra empty line is added for some reason 🤔
 
   return lines;
 }
@@ -52,13 +52,13 @@ class MessageView {
 export const PADDING = Symbol('padding');
 export type PADDING = typeof PADDING;
 export class Scrollable {
-  @observable accessor process: ContentContainer;
+  @observable accessor process: ScrollableContentContainer;
   @observable accessor #width: number;
   @observable accessor #height: number;
   @observable accessor #offset: number;
 
   constructor(props: {
-    container: ContentContainer;
+    container: ScrollableContentContainer;
     height?: number;
     offset?: number;
     width?: number;

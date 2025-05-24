@@ -1,8 +1,8 @@
 import { computed, observable } from "mobx";
 import type { Process } from "./process";
 import { readFileSync } from "node:fs";
-
-export class Doc {
+import type { ScrollableContentContainer } from "../scrollable/scrollable";
+export class Doc implements ScrollableContentContainer {
   @observable accessor process: Process;
   @observable accessor #content: string;
 
@@ -15,9 +15,9 @@ export class Doc {
   get content() {
     try {
       const file = readFileSync(this.#content, "utf-8");
-      return file
+      return [{ id: 'docs', content: file }]
     } catch (_) {
-      return this.#content;
+      return [{ id: 'docs', content: `${this.#content}\n` }]
     }
   }
 }

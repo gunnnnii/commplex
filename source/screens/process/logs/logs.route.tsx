@@ -34,7 +34,7 @@ export const LogsRoute = observer(() => {
   }, [process]);
 
   return (
-    <ScrollView content={container} />
+    <ScrollView content={container} justifyContent="flex-end" />
   )
 
 })

@@ -3,7 +3,7 @@ import { Box, measureElement, Text, useStdin, useStdout, type DOMElement, } from
 import { observer } from 'mobx-react-lite';
 import { match } from 'ts-pattern';
 import { PADDING, Scrollable } from './scrollable.js';
-import type { ContentContainer } from './scrollable.js';
+import type { ScrollableContentContainer } from './scrollable.js';
 
 const enableMouseTracking = () => {
   process.stdout.write('\x1b[?1003h'); // all motion tracking
@@ -15,7 +15,7 @@ const disableMouseTracking = () => {
   process.stdout.write('\x1b[?1006l');
 };
 
-export const ScrollView = observer((props: PropsWithChildren<{ content: ContentContainer }>) => {
+export const ScrollView = observer((props: PropsWithChildren<{ content: ScrollableContentContainer, justifyContent?: 'flex-end' | 'flex-start' }>) => {
   const view = useMemo(() => {
     return new Scrollable({ container: props.content });
   }, [props.content]);
@@ -97,7 +97,7 @@ export const ScrollView = observer((props: PropsWithChildren<{ content: ContentC
         ref={ref}
         flexDirection='column'
         flexGrow={1}
-        justifyContent='flex-end'
+        justifyContent={props.justifyContent}
       >
         <ContentPrint view={view} />
       </Box>
