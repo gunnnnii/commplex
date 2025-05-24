@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
-import fs from "node:fs";
+import fs from "node:fs/promises";
 import { builtinModules } from "node:module";
 import pkgjson from './package.json' with { type: "json" };
 import type { PackageJson } from 'type-fest';
@@ -74,19 +74,19 @@ export default defineConfig(({ mode }) => {
 			},
 			{
 				name: "add-shebang",
-				closeBundle() {
+				async closeBundle() {
 					const shebang = "#!/usr/bin/env node\n";
 					const filePath = path.resolve(__dirname, "dist", "cli.js");
-					const fileContent = fs.readFileSync(filePath, "utf8");
+					const fileContent = await fs.readFile(filePath, "utf8");
 					if (!fileContent.startsWith(shebang)) {
-						fs.writeFileSync(filePath, shebang + fileContent);
+						await fs.writeFile(filePath, shebang + fileContent);
 					}
 				},
 			},
 			{
-				name: "generate-dist-package-json",
+				name: "generate-package-contents",
 				apply: "build",
-				closeBundle() {
+				async closeBundle() {
 					const outDir = path.resolve(__dirname, "dist");
 					const pkg: PackageJson = {
 						name: "commplex",
@@ -98,15 +98,21 @@ export default defineConfig(({ mode }) => {
 					};
 
 					const pkgPath = path.join(outDir, "package.json");
-					fs.mkdirSync(outDir, { recursive: true });
-					fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+					await fs.mkdir(outDir, { recursive: true });
+					await fs.writeFile(pkgPath, JSON.stringify(pkg, null, 2));
+
+					const readmePath = path.join(outDir, "README.md");
+					await fs.copyFile(
+						path.resolve(__dirname, "README.md"),
+						readmePath
+					)
 				},
 			},
 			{
 				name: "make-cli-executable",
-				closeBundle() {
+				async closeBundle() {
 					try {
-						fs.chmodSync(distEntry, 0o755);
+						await fs.chmod(distEntry, 0o755);
 					} catch (error) {
 						console.error("Failed to make cli.js executable", error);
 					}

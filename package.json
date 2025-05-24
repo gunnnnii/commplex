@@ -1,8 +1,12 @@
 {
 	"name": "@gunnnnii/commplex-cli",
-	"version": "0.0.12",
+	"version": "0.0.13",
 	"license": "MIT",
 	"type": "module",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/gunnnnii/commplex.git"
+	},
 	"engines": {
 		"node": ">=22"
 	},
