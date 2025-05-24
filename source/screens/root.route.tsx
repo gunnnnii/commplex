@@ -15,7 +15,6 @@ import { groupBy, mapValues, values } from "remeda";
 import { log, logPath } from "../utilities/logging/logger.js";
 import { CommplexConfig } from "../models/config/config.js";
 
-
 function collectCommands(input: CommplexConfig): Script[] {
   const processes = mapValues(input.scripts, (value, key) => ({ name: key, ...value }))
 
@@ -69,7 +68,7 @@ class ConfigLoader {
             autostart: true,
             name: 'watch_logs',
             script: `tail -f ${logPath}`,
-            type: 'service',
+            type: 'devservice',
           })
         }
 
@@ -127,12 +126,11 @@ export const LoadedRoot = observer((props: { loader: ConfigLoader }) => {
   }, [store])
 
   const location = useLocation();
-
   return (
     <ProcessStoreProvider store={store}>
       <Box paddingY={1} paddingRight={1} gap={1} flexGrow={1} minHeight={rows} height={rows} overflowY='hidden'>
         <Sidebar>
-          <ScriptList scripts={scripts} />
+          <ScriptList />
           <Spacer />
           <Box
             borderTop
@@ -191,6 +189,7 @@ const getScore = (process: Process) => {
   let multiplier = 1;
   if (process.type === 'task') multiplier *= 10;
   if (process.type === 'script') multiplier *= 100;
+  if (process.type === 'devtask' || process.type === 'devservice') multiplier *= 1000;
 
   switch (process.state.status) {
     case 'dead':
@@ -211,9 +210,7 @@ const sortProcesses = (a: Process, b: Process) => {
   return a.name.localeCompare(b.name);
 }
 
-const ScriptList = observer((props: { scripts: Script[] }) => {
-  const { scripts } = props;
-
+const ScriptList = observer(() => {
   const { process: activeProcess } = useParams<"process">();
   const navigate = useNavigate();
 
@@ -221,13 +218,19 @@ const ScriptList = observer((props: { scripts: Script[] }) => {
   const processes = Array.from(store.processes.values())
     .sort(sortProcesses);
 
-  const { service: serviceList = [], script: scriptList = [], task: taskList = [] } = groupBy(processes, (process) => process.type);
+  const {
+    service: serviceList = [],
+    script: scriptList = [],
+    task: taskList = [],
+    devservice: devserviceList = [],
+    devtask: devtaskList = []
+  } = groupBy(processes, (process) => process.type);
 
   useInput((_input, key) => {
     const previous = processes.findIndex(process => process.name === activeProcess) ?? -1;
 
     if (key.upArrow) {
-      const nextIdx = (previous - 1 + scripts.length) % processes.length;
+      const nextIdx = (previous - 1 + processes.length) % processes.length;
       const next = processes.at(nextIdx);
 
       if (next) {
@@ -239,6 +242,7 @@ const ScriptList = observer((props: { scripts: Script[] }) => {
     if (key.downArrow) {
       const nextIdx = ((previous + 1) % processes.length);
       const next = processes.at(nextIdx);
+
 
       if (next) {
         const name = encodeURIComponent(next.name);
@@ -293,6 +297,21 @@ const ScriptList = observer((props: { scripts: Script[] }) => {
           title="Package Scripts"
           Indicator={SmallScriptStatusIndicator}
           processes={scriptList}
+          isItemSelected={(process) => process.name === activeProcess}
+        />
+      ) : null}
+      {import.meta.env.MODE === 'development' && devserviceList.length > 0 ? (
+        <List
+          title="Development"
+          Indicator={SmallProcessStatusIndicator}
+          processes={devserviceList}
+          isItemSelected={(process) => process.name === activeProcess}
+        />
+      ) : null}
+      {import.meta.env.MODE === 'development' && devtaskList.length > 0 ? (
+        <List
+          Indicator={SmallProcessStatusIndicator}
+          processes={devtaskList}
           isItemSelected={(process) => process.name === activeProcess}
         />
       ) : null}

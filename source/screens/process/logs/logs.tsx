@@ -18,7 +18,7 @@ const disableMouseTracking = () => {
 };
 
 function calculateMessageLines(message: Message, width: number) {
-  const splitMessage = wrapAnsi(message.content, width, { hard: true });
+  const splitMessage = wrapAnsi(message.content, width);
   const lines = splitMessage.split('\n');
   lines.pop(); // an extra empty line is added for some reason 🤔
 
@@ -41,12 +41,6 @@ class MessageView {
   get lines() {
     if (this.#width === 0) return [];
     return calculateMessageLines(this.#message, this.#width);
-  }
-
-  getMessage(start = 0, end = this.lines.length) {
-    const lines = this.lines.slice(start, end);
-    const message = { ...this.#message, content: lines.join('\n') };
-    return message;
   }
 
   @action
@@ -469,13 +463,22 @@ const Scrollbar = observer((props: { view: LogView }) => {
 
   const location = Math.floor((offset / maxOffset) * (height - 1));
 
+  // i have no idea why, but some messages styles manage to leak out of their line and spread into the rest of the UI
+  // other things i have tried
+  // - adding a \x1B[0m	reset at the end of every line
+  // - adding a text element containing a reset at the end of every line
+  // - applying this hack to the lines themselves
+  // - various other things
+  // and this is the only way i've found that works
+  const hackToPreventBoldFromLeaking = true;
+
   const blocks = Array.from({ length: height }, (_, index) => (
     index === location ? (
       // biome-ignore lint/correctness/useJsxKeyInIterable: order of these doesn't matter
-      <Text>░</Text>
+      <Text bold={hackToPreventBoldFromLeaking}>░</Text>
     ) : (
       // biome-ignore lint/correctness/useJsxKeyInIterable: order of these doesn't matter
-      <Text>█</Text>
+      <Text bold={hackToPreventBoldFromLeaking}>█</Text>
     )
   ))
   return (

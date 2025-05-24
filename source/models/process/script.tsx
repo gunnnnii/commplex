@@ -1,10 +1,12 @@
 import { z } from 'zod/v4'
 
+export const ScriptType = z.enum(['service', 'task', 'script', 'devtask', 'devservice']);
+
 export const Script = z.object({
   name: z.string(),
   script: z.string(),
   autostart: z.boolean().optional().default(false),
-  type: z.enum(['service', 'task', 'script']).optional().default('script'),
+  type: ScriptType.optional().default('script'),
   docs: z.string().optional()
 })
 
