@@ -101,9 +101,9 @@ export default defineConfig(({ mode }) => {
 					await fs.mkdir(outDir, { recursive: true });
 					await fs.writeFile(pkgPath, JSON.stringify(pkg, null, 2));
 
-					const readmePath = path.join(outDir, "README.md");
+					const readmePath = path.join(outDir, "readme.md");
 					await fs.copyFile(
-						path.resolve(process.cwd(), "README.md"),
+						path.resolve(process.cwd(), "readme.md"),
 						readmePath
 					)
 				},
