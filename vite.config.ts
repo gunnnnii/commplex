@@ -93,6 +93,7 @@ export default defineConfig(({ mode }) => {
 						version: pkgjson.version,
 						engines: pkgjson.engines,
 						license: pkgjson.license,
+						repository: pkgjson.repository,
 						bin: "./cli.js",
 						type: "module",
 					};
