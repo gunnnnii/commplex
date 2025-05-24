@@ -1,6 +1,6 @@
 import { Box, Spacer, Text, useInput } from "ink";
 import { useContext, useEffect, useState, type ComponentProps, type PropsWithChildren } from "react";
-import { Outlet, useLocation, useMatch, useNavigate, useParams } from "react-router";
+import { Outlet, useMatch, useNavigate, useParams } from "react-router";
 import type { Script } from "../models/process/script.js";
 import { useRows } from "../utilities/hooks/dimensions.js";
 import { ErrorBoundary } from "react-error-boundary";
@@ -48,9 +48,9 @@ class ConfigLoader {
         if (hasNoConfig || config.includePackageScripts) {
           if ('scripts' in pkg && pkg.scripts != null && typeof pkg.scripts === 'object') {
             const pkgScripts = Object.entries(pkg.scripts)
-              .map(([name, script]) => ({
+              .map(([name, command]) => ({
                 name,
-                script,
+                command,
                 autostart: false,
                 type: 'script' as const,
               }));
@@ -67,7 +67,7 @@ class ConfigLoader {
           scripts.push({
             autostart: true,
             name: 'watch_logs',
-            script: `tail -f ${logPath}`,
+            command: `tail -f ${logPath}`,
             type: 'devservice',
           })
         }
@@ -125,7 +125,6 @@ export const LoadedRoot = observer((props: { loader: ConfigLoader }) => {
     }
   }, [store])
 
-  const location = useLocation();
   return (
     <ProcessStoreProvider store={store}>
       <Box paddingY={1} paddingRight={1} gap={1} flexGrow={1} minHeight={rows} height={rows} overflowY='hidden'>
@@ -146,12 +145,12 @@ export const LoadedRoot = observer((props: { loader: ConfigLoader }) => {
             <Box><Text>restart:</Text><Spacer /><Text>⏎</Text></Box>
             <Box><Text>open docs:</Text><Spacer /><Text>d</Text></Box>
           </Box>
-          {import.meta.env.MODE === 'development' ? (
+          {/* {import.meta.env.MODE === 'development' ? (
             <>
               <Box height={1} />
               <Text>{location.pathname}</Text>
             </>
-          ) : null}
+          ) : null} */}
         </Sidebar>
         <Box flexGrow={1}>
           <Outlet />

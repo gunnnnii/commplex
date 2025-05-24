@@ -50,14 +50,14 @@ export class Process {
 	}
 
 	readonly name: Script["name"];
-	readonly script: Script["script"];
+	readonly command: Script["command"];
 	readonly autostart: Script["autostart"];
 	readonly type: Script["type"];
 	readonly docs?: Doc;
 
 	constructor(script: Script) {
 		this.name = script.name;
-		this.script = script.script;
+		this.command = script.command;
 		this.autostart = script.autostart;
 		this.type = script.type;
 
@@ -81,7 +81,7 @@ export class Process {
 		this.#exitCode = null;
 		this.#state = "starting";
 
-		const child = spawn(this.script, {
+		const child = spawn(this.command, {
 			shell: true,
 			stdio: "pipe",
 			env: {

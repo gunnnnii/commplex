@@ -28,7 +28,7 @@ export const ScrollView = observer((props: PropsWithChildren<{ content: Scrollab
     if (ref.current) {
       const measurement = measureElement(ref.current)
       view.setDimensions(measurement);
-      view.scrollToBottom()
+      if (props.justifyContent === 'flex-end') view.scrollToBottom()
     }
 
     const handler = () => {
@@ -41,7 +41,7 @@ export const ScrollView = observer((props: PropsWithChildren<{ content: Scrollab
     stdout.on('resize', handler)
 
     return () => { stdout.off('resize', handler) }
-  }, [stdout, view]);
+  }, [stdout, view, props.justifyContent]);
 
   useEffect(() => {
     if (!isRawModeSupported) return;

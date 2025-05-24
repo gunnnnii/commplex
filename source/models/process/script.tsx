@@ -4,7 +4,7 @@ export const ScriptType = z.enum(['service', 'task', 'script', 'devtask', 'devse
 
 export const Script = z.object({
   name: z.string(),
-  script: z.string(),
+  command: z.string(),
   autostart: z.boolean().optional().default(false),
   type: ScriptType.optional().default('script'),
   docs: z.string().optional()

@@ -2,7 +2,7 @@ import { observer } from "mobx-react-lite";
 import { useContext } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ProcessStoreContext } from "../../../models/process/store";
-import { Text, useInput } from "ink";
+import { Box, Text, useInput } from "ink";
 import { ScrollView } from "../../../models/scrollable/scroll-view";
 
 export const DocsRoute = observer(() => {
@@ -34,6 +34,8 @@ export const DocsRoute = observer(() => {
   }
 
   return (
-    <ScrollView content={content} />
+    <Box flexGrow={1} borderStyle="single" borderLeft={false} borderRight={false}>
+      <ScrollView content={content} />
+    </Box>
   )
 })

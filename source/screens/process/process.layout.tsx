@@ -37,7 +37,7 @@ export const ProcessLayout = observer(() => {
     throw new Error(`Process "${processName}" not found`);
   }
 
-  const command = process.script;
+  const command = process.command;
   const status = process.state
 
   return (
