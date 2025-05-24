@@ -1,23 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { Box, measureElement, Text, useStdin, useStdout, type DOMElement, } from 'ink';
-import type { Message } from '../../../models/process/message.js';
 import wrapAnsi from 'wrap-ansi';
-import { observer } from 'mobx-react-lite';
 import { action, computed, observable, reaction, runInAction, transaction, untracked } from 'mobx';
-import type { Process } from '../../../models/process/process.js';
-import { match } from 'ts-pattern';
 
-const enableMouseTracking = () => {
-  process.stdout.write('\x1b[?1003h'); // all motion tracking
-  process.stdout.write('\x1b[?1006h'); // SGR mode
-};
+export interface Content { id: string; content: string };
+export interface ContentContainer { content: Content[] };
 
-const disableMouseTracking = () => {
-  process.stdout.write('\x1b[?1003l');
-  process.stdout.write('\x1b[?1006l');
-};
-
-function calculateMessageLines(message: Message, width: number) {
+function calculateMessageLines(message: Content, width: number) {
   const splitMessage = wrapAnsi(message.content, width);
   const lines = splitMessage.split('\n');
   lines.pop(); // an extra empty line is added for some reason 🤔
@@ -26,14 +13,14 @@ function calculateMessageLines(message: Message, width: number) {
 }
 
 type Line =
-  | { content: string; message: Message }
+  | { content: string; message: Content }
   | PADDING
 
 class MessageView {
   @observable accessor #width = 0;
-  @observable accessor #message: Message;
+  @observable accessor #message: Content;
 
-  constructor(message: Message) {
+  constructor(message: Content) {
     this.#message = message;
   }
 
@@ -53,7 +40,7 @@ class MessageView {
   }
 
   @action
-  setMessage(message: Message) {
+  setMessage(message: Content) {
     this.#message = message;
   }
 
@@ -62,29 +49,29 @@ class MessageView {
   }
 }
 
-const PADDING = Symbol('padding');
-type PADDING = typeof PADDING;
-class LogView {
-  @observable accessor process: Process;
+export const PADDING = Symbol('padding');
+export type PADDING = typeof PADDING;
+export class Scrollable {
+  @observable accessor process: ContentContainer;
   @observable accessor #width: number;
   @observable accessor #height: number;
   @observable accessor #offset: number;
 
   constructor(props: {
-    process: Process;
+    container: ContentContainer;
     height?: number;
     offset?: number;
     width?: number;
   }) {
-    this.process = props.process;
+    this.process = props.container;
     this.#height = props.height ?? 0;
     this.#offset = props.offset ?? 0;
     this.#width = props.width ?? 0;
   }
 
-  @observable accessor #messageViewCache = new Map<Message, MessageView>();
+  @observable accessor #messageViewCache = new Map<Content, MessageView>();
 
-  #getMessageView(message: Message) {
+  #getMessageView(message: Content) {
     let view: MessageView | undefined = undefined;
 
     untracked(() => {
@@ -110,7 +97,7 @@ class LogView {
     let length = 0;
 
     untracked(() => {
-      length = this.process.messages.length;
+      length = this.process.content.length;
     });
 
     return length;
@@ -140,7 +127,7 @@ class LogView {
 
     for (let index = 0; index < totalMessages; index++) {
       // biome-ignore lint/style/noNonNullAssertion: we are sure that the index is valid
-      const message = this.process.messages.at(index)!;
+      const message = this.process.content.at(index)!;
 
       const prevTotal = total;
       const lines = calculateMessageLines(message, this.width).length;
@@ -169,11 +156,6 @@ class LogView {
   }
 
   @computed
-  get direction() {
-    return this.#height >= 0 ? 'forwards' : 'backwards';
-  }
-
-  @computed
   get firstVisibleMessage(): {
     index: number;
     relativeLineIndex: number;
@@ -184,7 +166,7 @@ class LogView {
 
   @computed
   get hasNextLines() {
-    void this.process.messages.length;
+    void this.process.content.length;
     return this.#lines.lines.at(-1) !== PADDING;
   }
 
@@ -197,7 +179,7 @@ class LogView {
   get length() {
     void this.#width;
     let sum = 0;
-    for (const message of this.process.messages) {
+    for (const message of this.process.content) {
       const view = this.#getMessageView(message);
       sum += view.lines.length;
     }
@@ -222,7 +204,7 @@ class LogView {
       index++
     ) {
       // biome-ignore lint/style/noNonNullAssertion: we are sure that the index is valid
-      const message = this.process.messages.at(index)!;
+      const message = this.process.content.at(index)!;
       const view = this.#getMessageView(message);
       const lines = view.lines;
 
@@ -234,7 +216,7 @@ class LogView {
 
     // here we have reached the end of the log,
     // so access the messages length to trigger updates if new messages are added
-    void this.process.messages.length;
+    void this.process.content.length;
 
     while (true) {
       yield PADDING;
@@ -254,11 +236,11 @@ class LogView {
   }
 
   @computed
-  get lines(): { messages: (Message | PADDING)[] } {
+  get lines(): { messages: (Content | PADDING)[] } {
     // cut off excess lines at either end, which are used to check if there are more lines
     const lines = this.#lines.lines.slice(1, -1);
 
-    const messages: (Message | PADDING)[] = [];
+    const messages: (Content | PADDING)[] = [];
 
     for (const line of lines) {
       if (line === PADDING) {
@@ -350,7 +332,6 @@ class LogView {
   track(onScroll?: (offset: number) => void) {
     return reaction(
       () => [
-        this.direction,
         this.offset,
         this.width,
         this.height,
@@ -366,141 +347,6 @@ class LogView {
   }
 }
 
-export const Logs = observer((props: PropsWithChildren<{ process: Process }>) => {
-  const [view] = useState(() => new LogView({ process: props.process }));
-  const ref = useRef<DOMElement>(null);
-
-  const { stdout } = useStdout();
-  const { stdin, setRawMode, isRawModeSupported } = useStdin();
-
-  useLayoutEffect(() => {
-    if (ref.current) {
-      const measurement = measureElement(ref.current)
-      view.setDimensions(measurement);
-      view.scrollToBottom()
-    }
-
-    const handler = () => {
-      if (ref.current) {
-        const measurement = measureElement(ref.current)
-        view.setDimensions(measurement);
-      }
-    }
-
-    stdout.on('resize', handler)
-
-    return () => { stdout.off('resize', handler) }
-  }, [stdout, view]);
-
-  useEffect(() => {
-    if (!isRawModeSupported) return;
-
-    setRawMode(true);
-    enableMouseTracking();
-
-    const handler = (buffer: Buffer<ArrayBufferLike>) => {
-      const chunk = buffer.toString()
-
-      if (chunk.startsWith('\x1b[<')) {
-        // biome-ignore lint/suspicious/noControlCharactersInRegex: <explanation>
-        const match = /\x1b\[<(\d+);(\d+);(\d+)([mM])/.exec(chunk);
-        if (match) {
-          const [_, code, col, row] = match;
-
-          if (!code || !col || !row) return;
-
-          const eventCode = Number.parseInt(code, 10);
-
-          if (eventCode === 64 && view.hasPreviousLines) { // up
-            view.scroll(-1);
-          } else if (eventCode === 65 && view.hasNextLines) { // down
-            view.scroll(1);
-          }
-        }
-      }
-    }
-
-    stdin.on('data', handler)
-
-    return () => {
-      setRawMode(false);
-      disableMouseTracking();
-      stdin.off('data', handler);
-    }
-  }, [isRawModeSupported, setRawMode, stdin, view]);
-
-  useEffect(() => {
-    // any time we reach the end of the log, we start tracking the addition of new lines
-    if (!view.hasNextLines) {
-      const dispose = view.track();
-      return () => dispose();
-    }
-  }, [view, view.hasNextLines])
-
-  return (
-    <Box
-      flexDirection="row"
-      flexGrow={1}
-    >
-      <Box
-        ref={ref}
-        flexDirection='column'
-        flexGrow={1}
-        justifyContent='flex-end'
-      >
-        <LogViewPrint view={view} />
-      </Box>
-      <Scrollbar view={view} />
-    </Box>
-  )
-})
-
-const Scrollbar = observer((props: { view: LogView }) => {
-  const height = Math.max(props.view.height, 1);
-
-  const maxOffset = Math.max(0, props.view.length - height - 1);
-  const offset = clamp(props.view.offset, 0, maxOffset);
-
-  const location = Math.floor((offset / maxOffset) * (height - 1));
-
-  // i have no idea why, but some messages styles manage to leak out of their line and spread into the rest of the UI
-  // other things i have tried
-  // - adding a \x1B[0m	reset at the end of every line
-  // - adding a text element containing a reset at the end of every line
-  // - applying this hack to the lines themselves
-  // - various other things
-  // and this is the only way i've found that works
-  const hackToPreventBoldFromLeaking = true;
-
-  const blocks = Array.from({ length: height }, (_, index) => (
-    index === location ? (
-      // biome-ignore lint/correctness/useJsxKeyInIterable: order of these doesn't matter
-      <Text bold={hackToPreventBoldFromLeaking}>░</Text>
-    ) : (
-      // biome-ignore lint/correctness/useJsxKeyInIterable: order of these doesn't matter
-      <Text bold={hackToPreventBoldFromLeaking}>█</Text>
-    )
-  ))
-  return (
-    <Box
-      flexDirection='column'
-      gap={0}
-    >
-      {blocks}
-    </Box>
-  )
-})
-
-const LogViewPrint = observer((props: { view: LogView }) => {
-  const lines = props.view.lines.messages.map((message) => {
-    return match(message)
-      .with(PADDING, () => null)
-      .otherwise((message) => <Text key={message.id} wrap='wrap'>{message.content}</Text>)
-  })
-
-  return lines;
-})
-
 function take<T>(iterator: Iterator<T>, n: number): T[] {
   const result: T[] = [];
   let count = 0;
@@ -513,8 +359,4 @@ function take<T>(iterator: Iterator<T>, n: number): T[] {
     count++;
   }
   return result;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
 }

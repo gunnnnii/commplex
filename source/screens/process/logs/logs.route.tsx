@@ -1,8 +1,22 @@
 import { observer } from "mobx-react-lite";
-import { useContext } from "react";
+import { useContext, useMemo } from "react";
 import { useParams } from "react-router";
 import { ProcessStoreContext } from "../../../models/process/store";
-import { Logs } from "./logs";
+import type { Process } from "../../../models/process/process";
+import { observable } from "mobx";
+import { ScrollView } from "../../../models/scrollable/scroll-view";
+
+class ProcessContentContainer {
+  @observable accessor process: Process;
+
+  constructor(process: Process) {
+    this.process = process;
+  }
+
+  get content() {
+    return this.process.messages;
+  }
+}
 
 export const LogsRoute = observer(() => {
   const params = useParams<"process">();
@@ -15,7 +29,12 @@ export const LogsRoute = observer(() => {
 
   if (!process) throw new Error(`Process "${processName}" not found`);
 
+  const container = useMemo(() => {
+    return new ProcessContentContainer(process);
+  }, [process]);
+
   return (
-    <Logs key={process.name} process={process} />
+    <ScrollView content={container} />
   )
+
 })
