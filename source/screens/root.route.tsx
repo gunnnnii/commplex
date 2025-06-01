@@ -61,6 +61,73 @@ const ProcessInitializer = observer((props: { scripts: Script[], store: ProcessS
   return null;
 });
 
+const ContextualActions = observer(() => {
+  const { process: activeProcessName } = useParams<"process">();
+  const store = useContext(ProcessStoreContext);
+  const isOnDocPage = useMatch("process/:process/docs");
+
+  const activeProcess = activeProcessName ? store.processes.get(activeProcessName) : undefined;
+
+  if (!activeProcess) {
+    return (
+      <Box
+        borderTop
+        borderBottom={false}
+        borderLeft={false}
+        borderRight={false}
+        borderStyle="single"
+        flexDirection='column'
+        gap={0}
+        minWidth={30}
+      >
+        <Box><Text>↑↓:</Text><Spacer /><Text>navigate</Text></Box>
+      </Box>
+    );
+  }
+
+  const actions: Array<{ key: string; action: string }> = [];
+
+  // Navigation is always available
+  actions.push({ key: "↑↓", action: "navigate" });
+
+  // Process-specific actions based on state
+  if (activeProcess.state.status === 'alive') {
+    actions.push({ key: "q", action: "stop" });
+  } else {
+    actions.push({ key: "⏎ ", action: "start" });
+  }
+
+  // Docs action if docs are available
+  if (activeProcess.docs?.content) {
+    if (isOnDocPage) {
+      actions.push({ key: "d", action: "close docs" });
+    } else {
+      actions.push({ key: "d", action: "open docs" });
+    }
+  }
+
+  return (
+    <Box
+      borderTop
+      borderBottom={false}
+      borderLeft={false}
+      borderRight={false}
+      borderStyle="single"
+      flexDirection='column'
+      gap={0}
+      minWidth={30}
+    >
+      {actions.map(({ key, action }, index) => (
+        <Box key={index}>
+          <Text>{key}:</Text>
+          <Spacer />
+          <Text>{action}</Text>
+        </Box>
+      ))}
+    </Box>
+  );
+});
+
 const ApplicationLayout = observer((props: { scripts: Script[] }) => {
   const { scripts } = props;
   const [store] = useState(() => new ProcessStore(scripts));
@@ -83,7 +150,7 @@ const ApplicationLayout = observer((props: { scripts: Script[] }) => {
         <Sidebar>
           <ScriptList />
           <Spacer />
-          <KeyboardShortcuts />
+          <ContextualActions />
         </Sidebar>
         <Box flexGrow={1}>
           <Outlet />
@@ -92,23 +159,6 @@ const ApplicationLayout = observer((props: { scripts: Script[] }) => {
     </ProcessStoreProvider>
   )
 })
-
-const KeyboardShortcuts = () => (
-  <Box
-    borderTop
-    borderBottom={false}
-    borderLeft={false}
-    borderRight={false}
-    borderStyle="single"
-    flexDirection='column'
-    gap={0}
-    minWidth={30}
-  >
-    <Box><Text>kill:</Text><Spacer /><Text>q</Text></Box>
-    <Box><Text>restart:</Text><Spacer /><Text>⏎</Text></Box>
-    <Box><Text>open docs:</Text><Spacer /><Text>d</Text></Box>
-  </Box>
-);
 
 export const Root = observer(() => {
   // Load config on mount
