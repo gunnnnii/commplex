@@ -1,7 +1,33 @@
-import { action, isFlowCancellationError, observable } from "mobx";
+import { action, computed, isFlowCancellationError, observable } from "mobx";
 import { createContext, type PropsWithChildren, useState, useEffect } from "react";
 import type { Script } from "./script";
 import { Process } from "./process";
+
+// Process scoring and sorting logic
+const getProcessScore = (process: Process): number => {
+  let multiplier = 1;
+  if (process.type === 'task') multiplier *= 10;
+  if (process.type === 'script') multiplier *= 100;
+  if (process.type === 'devtask' || process.type === 'devservice') multiplier *= 1000;
+
+  switch (process.state.status) {
+    case 'dead':
+      return 2 * multiplier
+    case 'alive':
+      return 1 * multiplier
+  }
+}
+
+const sortProcesses = (a: Process, b: Process): number => {
+  const scoreA = getProcessScore(a);
+  const scoreB = getProcessScore(b);
+
+  if (scoreA !== scoreB) {
+    return scoreA - scoreB;
+  }
+
+  return a.name.localeCompare(b.name);
+}
 
 export class ProcessStore {
   @observable accessor processes: Map<string, Process>;
@@ -11,6 +37,14 @@ export class ProcessStore {
       script => [script.name, new Process(script)] as const,
     );
     this.processes = new Map(processes);
+  }
+
+  @computed get sortedProcesses(): Process[] {
+    return Array.from(this.processes.values()).sort(sortProcesses);
+  }
+
+  @computed get firstProcess(): Process | undefined {
+    return this.sortedProcesses[0];
   }
 
   @action addProcess(script: Script) {

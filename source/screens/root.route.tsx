@@ -1,6 +1,6 @@
 import { Box, Spacer, Text, useInput } from "ink";
 import { useContext, useEffect, useState, type ComponentProps, type PropsWithChildren } from "react";
-import { Outlet, useMatch, useNavigate, useParams } from "react-router";
+import { Outlet, useMatch, useNavigate, useParams, useLocation } from "react-router";
 import type { Script } from "../models/process/script.js";
 import { useRows } from "../utilities/hooks/dimensions.js";
 import { ErrorBoundary } from "react-error-boundary";
@@ -8,149 +8,82 @@ import { match } from "ts-pattern";
 import { observer } from 'mobx-react-lite'
 import type { Process, ProcessState } from "../models/process/process.js";
 import { ProcessStore, ProcessStoreContext, ProcessStoreProvider, } from "../models/process/store.js";
-import { flow, flowResult, isFlowCancellationError, observable } from "mobx";
-import { readFile } from "node:fs/promises";
-import { packageUp } from "package-up";
-import { groupBy, mapValues, values } from "remeda";
-import { log, logPath } from "../utilities/logging/logger.js";
-import { CommplexConfig } from "../models/config/config.js";
+import { flowResult, isFlowCancellationError } from "mobx";
+import { configLoader } from "../services/config-loader.js";
+import { groupBy } from "remeda";
 
-function collectCommands(input: CommplexConfig): Script[] {
-  const processes = mapValues(input.scripts, (value, key) => ({ name: key, ...value }))
-
-  return values(processes)
-}
-
-class ConfigLoader {
-  @observable accessor state: 'error' | 'loading' | 'success' | 'uninitialized' | string = 'uninitialized'
-
-  @observable accessor config: Script[] | undefined = undefined
-
-  @observable accessor error: unknown | undefined = undefined
-
-  @flow.bound
-  *loadConfig() {
-    this.state = 'loading'
-
-    try {
-      const pkgPath: string | undefined = yield packageUp()
-
-      if (pkgPath == null) {
-        console.error('No package.json found')
-        process.exit(1)
-      } else {
-        const pkg: Record<string, unknown> = yield readFile(pkgPath, 'utf-8').then(JSON.parse);
-        const hasNoConfig = pkg.commplex == null || typeof pkg.commplex !== 'object';
-
-        const config = CommplexConfig.parse(pkg.commplex ?? {})
-        const scripts = collectCommands(config);
-
-        if (hasNoConfig || config.includePackageScripts) {
-          if ('scripts' in pkg && pkg.scripts != null && typeof pkg.scripts === 'object') {
-            const pkgScripts = Object.entries(pkg.scripts)
-              .map(([name, command]) => ({
-                name,
-                command,
-                autostart: false,
-                type: 'script' as const,
-              }));
-
-            setTimeout(() => {
-              log(JSON.stringify(pkgScripts, null, 2))
-            }, 5000)
-
-            scripts.push(...pkgScripts)
-          }
-        }
-
-        if (import.meta.env.MODE === 'development') {
-          scripts.push({
-            autostart: true,
-            name: 'watch_logs',
-            command: `tail -f ${logPath}`,
-            type: 'devservice',
-          })
-        }
-
-        this.state = 'success'
-        this.config = scripts;
-
-        return scripts;
-      }
-    } catch (error) {
-      this.state = 'error'
-      this.error = error
-    }
-  }
-}
-
-export const SplashScreen = observer(() => {
+const ConfigLoadingScreen = observer(() => {
   const rows = useRows();
 
   return (
     <Box paddingY={1} paddingRight={1} gap={1} flexGrow={1} minHeight={rows} height={rows} overflowY='hidden' justifyContent="center" alignItems="center">
-      <Text>Loading...</Text>
+      <Text>Loading configuration...</Text>
     </Box>
   )
 })
 
-export const LoadedRoot = observer((props: { loader: ConfigLoader }) => {
-  const scripts = props.loader.config ?? [];
-  const [store] = useState(() => new ProcessStore(scripts));
+const ConfigErrorScreen = observer(() => {
   const rows = useRows();
+  const error = configLoader.error;
+
+  return (
+    <Box paddingY={1} paddingRight={1} gap={1} flexGrow={1} minHeight={rows} height={rows} overflowY='hidden' justifyContent="center" alignItems="center">
+      <Text color="red">Failed to load configuration: {String(error)}</Text>
+    </Box>
+  )
+})
+
+const ProcessInitializer = observer((props: { scripts: Script[], store: ProcessStore }) => {
+  const { scripts, store } = props;
 
   useEffect(() => {
+    // Add new scripts that aren't already in the store
     for (const script of scripts) {
       if (!store.processes.has(script.name)) {
-        const process = store.addProcess(script);
-        if (process.autostart) process.connect().catch((error) => {
+        store.addProcess(script);
+      }
+    }
+  }, [scripts, store]);
+
+  useEffect(() => {
+    // Auto-start processes that should be auto-started
+    for (const process of store.processes.values()) {
+      if (process.autostart && process.state.state === 'closed') {
+        process.connect().catch((error) => {
           if (!isFlowCancellationError(error)) {
-            throw error;
+            console.error(`Failed to auto-start process ${process.name}:`, error);
           }
         });
       }
     }
-  }, [store, scripts]);
+  }, [store]);
 
+  return null;
+});
+
+const ApplicationLayout = observer((props: { scripts: Script[] }) => {
+  const { scripts } = props;
+  const [store] = useState(() => new ProcessStore(scripts));
+  const rows = useRows();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Auto-navigate to first process if we're on the index route
   useEffect(() => {
-    for (const process of store.processes.values()) {
-      if (process.autostart) {
-        process.connect()
-          .catch((error) => {
-            if (!isFlowCancellationError(error)) {
-              throw error;
-            }
-          });
-      }
+    if (location.pathname === '/' && store.firstProcess) {
+      const processName = encodeURIComponent(store.firstProcess.name);
+      navigate(`/process/${processName}`, { replace: true });
     }
-  }, [store])
+  }, [location.pathname, store.firstProcess, navigate]);
 
   return (
     <ProcessStoreProvider store={store}>
+      <ProcessInitializer scripts={scripts} store={store} />
       <Box paddingY={1} paddingRight={1} gap={1} flexGrow={1} minHeight={rows} height={rows} overflowY='hidden'>
         <Sidebar>
           <ScriptList />
           <Spacer />
-          <Box
-            borderTop
-            borderBottom={false}
-            borderLeft={false}
-            borderRight={false}
-            borderStyle="single"
-            flexDirection='column'
-            gap={0}
-            minWidth={30}
-          >
-            <Box><Text>kill:</Text><Spacer /><Text>q</Text></Box>
-            <Box><Text>restart:</Text><Spacer /><Text>⏎</Text></Box>
-            <Box><Text>open docs:</Text><Spacer /><Text>d</Text></Box>
-          </Box>
-          {/* {import.meta.env.MODE === 'development' ? (
-            <>
-              <Box height={1} />
-              <Text>{location.pathname}</Text>
-            </>
-          ) : null} */}
+          <KeyboardShortcuts />
         </Sidebar>
         <Box flexGrow={1}>
           <Outlet />
@@ -160,62 +93,62 @@ export const LoadedRoot = observer((props: { loader: ConfigLoader }) => {
   )
 })
 
-export const Root = observer(() => {
-  const [loader] = useState(() => new ConfigLoader());
+const KeyboardShortcuts = () => (
+  <Box
+    borderTop
+    borderBottom={false}
+    borderLeft={false}
+    borderRight={false}
+    borderStyle="single"
+    flexDirection='column'
+    gap={0}
+    minWidth={30}
+  >
+    <Box><Text>kill:</Text><Spacer /><Text>q</Text></Box>
+    <Box><Text>restart:</Text><Spacer /><Text>⏎</Text></Box>
+    <Box><Text>open docs:</Text><Spacer /><Text>d</Text></Box>
+  </Box>
+);
 
+export const Root = observer(() => {
+  // Load config on mount
+  useEffect(() => {
+    if (configLoader.state === 'uninitialized') {
+      const load = flowResult(configLoader.loadConfig());
+      load.catch((error) => {
+        if (!isFlowCancellationError(error)) {
+          console.error('Failed to load config:', error);
+        }
+      });
+
+      return () => load.cancel();
+    }
+  }, []);
+
+  // Keep process alive
   useEffect(() => {
     const interval = setInterval(() => { /* keep the process alive */ }, 1000);
     return () => clearInterval(interval);
-  })
+  }, []);
 
-  useEffect(() => {
-    const load = flowResult(loader.loadConfig())
-    load.catch((error) => {
-      if (!isFlowCancellationError(error)) {
-        throw error;
-      }
-    });
+  // Render based on config loader state
+  if (configLoader.state === 'error') {
+    return <ConfigErrorScreen />;
+  }
 
-    return () => load.cancel();
-  }, [loader]);
+  if (configLoader.state !== 'success' || !configLoader.config) {
+    return <ConfigLoadingScreen />;
+  }
 
-  if (loader.state !== 'success') return <SplashScreen />
-
-  return <LoadedRoot loader={loader} />
+  return <ApplicationLayout scripts={configLoader.config} />;
 });
-
-const getScore = (process: Process) => {
-  let multiplier = 1;
-  if (process.type === 'task') multiplier *= 10;
-  if (process.type === 'script') multiplier *= 100;
-  if (process.type === 'devtask' || process.type === 'devservice') multiplier *= 1000;
-
-  switch (process.state.status) {
-    case 'dead':
-      return 2 * multiplier
-    case 'alive':
-      return 1 * multiplier
-  }
-}
-
-const sortProcesses = (a: Process, b: Process) => {
-  const scoreA = getScore(a);
-  const scoreB = getScore(b);
-
-  if (scoreA !== scoreB) {
-    return scoreA - scoreB;
-  }
-
-  return a.name.localeCompare(b.name);
-}
 
 const ScriptList = observer(() => {
   const { process: activeProcess } = useParams<"process">();
   const navigate = useNavigate();
 
   const store = useContext(ProcessStoreContext);
-  const processes = Array.from(store.processes.values())
-    .sort(sortProcesses);
+  const processes = store.sortedProcesses;
 
   const {
     service: serviceList = [],
@@ -241,7 +174,6 @@ const ScriptList = observer(() => {
     if (key.downArrow) {
       const nextIdx = ((previous + 1) % processes.length);
       const next = processes.at(nextIdx);
-
 
       if (next) {
         const name = encodeURIComponent(next.name);

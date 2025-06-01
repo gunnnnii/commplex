@@ -14,7 +14,7 @@ It will automatically pick up your package scripts and let you interactively run
 
 ## configuration
 
-For a nicer experience, you can also provide a configuration. This lets you control how your scripts are displayed and run.
+For a nicer experience, you can add a configuration file to `package.json#commplex`.
 
 ```ts
 type Script = {
@@ -58,7 +58,13 @@ Commplex will read the configuration out of `package.json#commplex`.
 
 ```json
 {
-	"commplex": {
+  "scripts": {
+    "build": "tsc -b && vite build",
+    "dev": "vite build --watch --mode development",
+    "start": "node dist/cli.js",
+    "test": "prettier --check . && xo && ava"
+  },
+  "commplex": {
     "includePackageScripts": false,
     "scripts": {
       "watch": {
@@ -71,32 +77,13 @@ Commplex will read the configuration out of `package.json#commplex`.
         "type": "task"
       }
     }
-	},
-
-	"name": "@gunnnnii/commplex-cli",
-	"version": "0.0.10",
-	"license": "MIT",
-	"type": "module",
-	"engines": {
-		"node": ">=22"
-	},
-	"scripts": {
-		"build": "tsc -b && vite build",
-		"dev": "vite build --watch --mode development",
-		"start": "node dist/cli.js",
-		"test": "prettier --check . && xo && ava"
-	},
-	"dependencies": {
-	},
-	"devDependencies": {
-	},
-	"packageManager": "pnpm@9.12.0+sha256.a61b67ff6cc97af864564f4442556c22a04f2e5a7714fbee76a1011361d9b726"
+  }
 }
 ```
 
 ## development
 
-running this project locally is easy
+to run this project locally, just do
 
 ```bash
 git clone git@github.com:gunnnnii/commplex.git
