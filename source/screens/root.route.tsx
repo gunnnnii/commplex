@@ -1,5 +1,5 @@
 import { Box, Spacer, Text, useInput } from "ink";
-import { useContext, useEffect, useState, type ComponentProps, type PropsWithChildren } from "react";
+import { useContext, useEffect, useState, type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
 import { Outlet, useMatch, useNavigate, useParams, useLocation } from "react-router";
 import type { Script } from "../models/process/script.js";
 import { useRows } from "../utilities/hooks/dimensions.js";
@@ -305,7 +305,7 @@ const ScriptList = observer(() => {
 const List = observer((props: {
   title?: string; processes: Process[],
   isItemSelected: (item: Process, index: number) => boolean,
-  Indicator?: (props: { status: ProcessState }) => JSX.Element,
+  Indicator?: (props: { status: ProcessState }) => ReactNode,
 }) => {
   return (
     <Box flexDirection="column">
