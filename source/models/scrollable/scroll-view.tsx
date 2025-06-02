@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, type PropsWithChildren } from 'react';
-import { Box, measureElement, Text, useStdin, useStdout, type DOMElement, } from 'ink';
+import { Box, measureElement, Text, useStdin, useStdout, useInput, type DOMElement, } from 'ink';
 import { observer } from 'mobx-react-lite';
 import { match } from 'ts-pattern';
 import { PADDING, Scrollable } from './scrollable.js';
@@ -23,6 +23,31 @@ export const ScrollView = observer((props: PropsWithChildren<{ content: Scrollab
 
   const { stdout } = useStdout();
   const { stdin, setRawMode, isRawModeSupported } = useStdin();
+
+  // Keyboard scrolling
+  useInput((input, key) => {
+    const pageSize = Math.max(1, view.height - 1); // Leave one line for context
+
+    if (input === 'j' && view.hasNextLines) {
+      // Vim-style: j = down one line
+      view.scroll(1);
+    } else if (input === 'k' && view.hasPreviousLines) {
+      // Vim-style: k = up one line
+      view.scroll(-1);
+    } else if (key.shift && input === ' ' && view.hasPreviousLines) {
+      // Space = page down (like less/more)
+      view.scroll(-pageSize);
+    } else if (input === ' ' && view.hasNextLines) {
+      // b = page up (like less/more, since Shift+Space is hard to detect)
+      view.scroll(pageSize);
+    } else if (input === 'g' && view.hasPreviousLines) {
+      // g = jump to top (vim style)
+      view.scrollToTop();
+    } else if (input === 'G' && view.hasNextLines) {
+      // G = jump to bottom (vim style)
+      view.scrollToBottom();
+    }
+  });
 
   useLayoutEffect(() => {
     if (ref.current) {

@@ -321,6 +321,8 @@ export class Scrollable {
 
   @action
   scrollToTop() {
+    this.#trackerController.abort();
+    this.#trackerController = new AbortController();
     this.#offset = 0;
   }
 

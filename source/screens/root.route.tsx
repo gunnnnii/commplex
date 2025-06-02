@@ -89,6 +89,7 @@ const ContextualActions = observer(() => {
 
   // Navigation is always available
   actions.push({ key: "↑↓", action: "navigate" });
+  actions.push({ key: "j/k", action: "scroll" });
 
   // Process-specific actions based on state
   if (activeProcess.state.status === 'alive') {
