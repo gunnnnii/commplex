@@ -119,7 +119,7 @@ const ContextualActions = observer(() => {
       gap={0}
       minWidth={30}
     >
-      {actions.map(({ key, action }, index) => (
+      {actions.map(({ key, action }, _index) => (
         <Box key={action}>
           <Text>{key}:</Text>
           <Spacer />

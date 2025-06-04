@@ -5,6 +5,7 @@ import { mapValues, values } from "remeda";
 import { CommplexConfig } from "../models/config/config.js";
 import type { Script } from "../models/process/script.js";
 import { log, logPath } from "../utilities/logging/logger.js";
+import { WATCH_LOGS_PROCESS } from "../constants/processes.js";
 
 function collectCommands(input: CommplexConfig): Script[] {
 	const processes = mapValues(input.scripts, (value, key) => ({
@@ -17,7 +18,7 @@ function collectCommands(input: CommplexConfig): Script[] {
 function createDevScript(): Script {
 	return {
 		autostart: true,
-		name: "watch_logs",
+		name: WATCH_LOGS_PROCESS,
 		command: `tail -f ${logPath}`,
 		type: "devservice",
 	};
@@ -60,6 +61,7 @@ export class ConfigLoader {
 		}
 	}
 
+	// biome-ignore lint/suspicious/noExplicitAny: Generator types for mobx flow are complex
 	private *loadScripts(): Generator<any, Script[], any> {
 		const pkgPath: string | undefined = yield packageUp();
 

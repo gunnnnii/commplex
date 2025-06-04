@@ -5,7 +5,16 @@ export interface Content { id: string; content: string };
 export interface ScrollableContentContainer { content: Content[] };
 
 function calculateMessageLines(message: Content, width: number) {
-  const splitMessage = wrapAnsi(message.content, width);
+  // Check if content appears to be pre-formatted (has leading spaces indicating structure)
+  const hasIndentation = /^\s+/m.test(message.content);
+
+  if (hasIndentation) {
+    // For pre-formatted content, just split on existing line breaks to preserve structure
+    return message.content.split('\n');
+  }
+
+  // For regular content, use wrapAnsi for line wrapping
+  const splitMessage = wrapAnsi(message.content, width, { trim: false });
   const lines = splitMessage.split('\n');
   // lines.pop(); // an extra empty line is added for some reason 🤔
 

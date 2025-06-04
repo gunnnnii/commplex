@@ -47,7 +47,12 @@ function scheduleFlush() {
 }
 
 export const log = (...args: string[]) => {
-  const content = args.join(' ');
+  let content = args.join(' ');
+
+  if (content.endsWith('\n')) {
+    content = content.slice(0, -1);
+  }
+
   const timestamp = new Date().toISOString();
 
   logQueue.push({ content, timestamp });

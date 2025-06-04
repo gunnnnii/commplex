@@ -3,7 +3,6 @@ import { Box, PixelTransform, useStdin, type DOMElement } from "ink";
 import { useState, useRef, useEffect, type ComponentPropsWithRef, useCallback } from "react";
 import { getBoundingClientRect } from "../utilities/layout-measurements";
 import { useSelectionStore } from "./selection-store";
-import { log } from "../utilities/logging/logger";
 
 const enableMouseTracking = () => {
   process.stdout.write('\x1b[?1003h'); // all motion tracking
@@ -159,7 +158,6 @@ function useDragRange(selectionId: string) {
 
           // Route to appropriate handler
           if (eventCode === 32) {
-            log("drag")
             // Drag/movement events
             dragHandler(x, y);
           } else {
@@ -281,8 +279,6 @@ export const Selectable = (props: ComponentPropsWithRef<typeof Box> & {
   };
 
   const rowRanges = bbox == null || range == null ? [] : createRowRanges(range[0], range[1]);
-
-  log(`rendered: ${rowRanges.length}`);
 
   return (
     <Box {...boxProps} ref={ref}>

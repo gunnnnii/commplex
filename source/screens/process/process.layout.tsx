@@ -5,6 +5,7 @@ import { match } from 'ts-pattern';
 import { observer } from 'mobx-react-lite';
 import type { ProcessState } from '../../models/process/process.js';
 import { ProcessStoreContext, } from '../../models/process/store.js';
+import { WATCH_LOGS_PROCESS } from '../../constants/processes.js';
 
 const StatusIndicator = observer((props: { status: ProcessState }) => {
   return (
@@ -27,8 +28,11 @@ const StatusIndicator = observer((props: { status: ProcessState }) => {
 
 export const ProcessLayout = observer(() => {
   const params = useParams<"process">();
-  // biome-ignore lint/style/noNonNullAssertion: <explanation>
-  const processName = decodeURIComponent(params.process!);
+
+  // Handle both parameterized routes (:process) and literal routes (watch_logs)
+  const processName = params.process
+    ? decodeURIComponent(params.process)
+    : WATCH_LOGS_PROCESS;
 
   const store = useContext(ProcessStoreContext);
   const process = store.processes.get(processName);
