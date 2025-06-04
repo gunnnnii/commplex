@@ -90,6 +90,7 @@ const ContextualActions = observer(() => {
   // Navigation is always available
   actions.push({ key: "↑↓", action: "navigate" });
   actions.push({ key: "j/k", action: "scroll" });
+  actions.push({ key: "c", action: "copy" });
 
   // Process-specific actions based on state
   if (activeProcess.state.status === 'alive') {
@@ -119,7 +120,7 @@ const ContextualActions = observer(() => {
       minWidth={30}
     >
       {actions.map(({ key, action }, index) => (
-        <Box key={index}>
+        <Box key={action}>
           <Text>{key}:</Text>
           <Spacer />
           <Text>{action}</Text>

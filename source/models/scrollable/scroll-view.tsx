@@ -4,6 +4,10 @@ import { observer } from 'mobx-react-lite';
 import { match } from 'ts-pattern';
 import { PADDING, Scrollable } from './scrollable.js';
 import type { ScrollableContentContainer } from './scrollable.js';
+import { Selectable } from '../selectable.js';
+import { useCopy } from '../copy-handler.js';
+import { selectionStore } from '../selection-store.js';
+import { untracked } from 'mobx';
 
 const enableMouseTracking = () => {
   process.stdout.write('\x1b[?1003h'); // all motion tracking
@@ -15,7 +19,11 @@ const disableMouseTracking = () => {
   process.stdout.write('\x1b[?1006l');
 };
 
-export const ScrollView = observer((props: PropsWithChildren<{ content: ScrollableContentContainer, justifyContent?: 'flex-end' | 'flex-start' }>) => {
+export const ScrollView = observer((props: PropsWithChildren<{
+  content: ScrollableContentContainer,
+  justifyContent?: 'flex-end' | 'flex-start',
+  selectionId?: string;
+}>) => {
   const view = useMemo(() => {
     return new Scrollable({ container: props.content });
   }, [props.content]);
@@ -24,6 +32,8 @@ export const ScrollView = observer((props: PropsWithChildren<{ content: Scrollab
   const { stdout } = useStdout();
   const { stdin, setRawMode, isRawModeSupported } = useStdin();
 
+  // Add copy handler
+  const copy = useCopy();
   // Keyboard scrolling
   useInput((input, key) => {
     const pageSize = Math.max(1, view.height - 1); // Leave one line for context
@@ -46,6 +56,13 @@ export const ScrollView = observer((props: PropsWithChildren<{ content: Scrollab
     } else if (input === 'G' && view.hasNextLines) {
       // G = jump to bottom (vim style)
       view.scrollToBottom();
+    } else if (input === 'c' && selectionStore.hasSelections) {
+      untracked(() => {
+        const activeSelection = selectionStore.activeSelection;
+        if (activeSelection) {
+          copy(activeSelection);
+        }
+      })
     }
   });
 
@@ -118,14 +135,16 @@ export const ScrollView = observer((props: PropsWithChildren<{ content: Scrollab
       flexDirection="row"
       flexGrow={1}
     >
-      <Box
+      <Selectable
         ref={ref}
         flexDirection='column'
         flexGrow={1}
         justifyContent={props.justifyContent}
+        selectionId={props.selectionId ?? 'scroll-view'}
+        source="scroll-view"
       >
         <ContentPrint view={view} />
-      </Box>
+      </Selectable>
       <Scrollbar view={view} />
     </Box>
   )

@@ -20,10 +20,9 @@ export function measureLeft(node: DOMElement) {
       for (const child of parent.childNodes) {
         if (child === currentNode) {
           break;
-        } else {
-          const width = child.yogaNode?.getComputedWidth();
-          left += width ?? 0;
         }
+        const width = child.yogaNode?.getComputedWidth();
+        left += width ?? 0;
       }
     } else if (direction === FlexDirection.RowReverse) {
       const children = Array.from(parent.childNodes);
@@ -57,10 +56,9 @@ export function measureTop(node: DOMElement) {
       for (const child of parent.childNodes) {
         if (child === currentNode) {
           break;
-        } else {
-          const height = child.yogaNode?.getComputedHeight();
-          top += height ?? 0;
         }
+        const height = child.yogaNode?.getComputedHeight();
+        top += height ?? 0;
       }
     } else if (direction === FlexDirection.ColumnReverse) {
       const children = Array.from(parent.childNodes);
