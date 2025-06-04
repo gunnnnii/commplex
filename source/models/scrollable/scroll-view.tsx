@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, type PropsWithChildren } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, type PropsWithChildren } from 'react';
 import { Box, measureElement, Text, useStdin, useStdout, useInput, type DOMElement, } from 'ink';
 import { observer } from 'mobx-react-lite';
 import { match } from 'ts-pattern';
@@ -22,7 +22,6 @@ const disableMouseTracking = () => {
 export const ScrollView = observer((props: PropsWithChildren<{
   content: ScrollableContentContainer,
   justifyContent?: 'flex-end' | 'flex-start',
-  selectionId?: string;
 }>) => {
   const view = useMemo(() => {
     return new Scrollable({ container: props.content });
@@ -130,6 +129,8 @@ export const ScrollView = observer((props: PropsWithChildren<{
     }
   }, [view, view.hasNextLines])
 
+  const selectionId = useId();
+
   return (
     <Box
       flexDirection="row"
@@ -140,8 +141,7 @@ export const ScrollView = observer((props: PropsWithChildren<{
         flexDirection='column'
         flexGrow={1}
         justifyContent={props.justifyContent}
-        selectionId={props.selectionId ?? 'scroll-view'}
-        source="scroll-view"
+        selectionId={selectionId}
       >
         <ContentPrint view={view} />
       </Selectable>

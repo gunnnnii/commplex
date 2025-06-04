@@ -3,6 +3,7 @@ import { Box, PixelTransform, useStdin, type DOMElement } from "ink";
 import { useState, useRef, useEffect, type ComponentPropsWithRef, useCallback } from "react";
 import { getBoundingClientRect } from "../utilities/layout-measurements";
 import { useSelectionStore } from "./selection-store";
+import { observer } from "mobx-react-lite";
 
 const enableMouseTracking = () => {
   process.stdout.write('\x1b[?1003h'); // all motion tracking
@@ -199,14 +200,13 @@ const clampToBounds = (bbox: BBox, x: number, y: number) => {
   };
 };
 
-export const Selectable = (props: ComponentPropsWithRef<typeof Box> & {
+export const Selectable = observer((props: ComponentPropsWithRef<typeof Box> & {
   selectionId?: string;
-  source?: string;
 }) => {
   const selectionId = props.selectionId ?? 'default';
   const range = useDragRange(selectionId);
   const internalRef = useRef<DOMElement>(null);
-  const { selectionId: _, source: __, ...boxProps } = props;
+  const { selectionId: _, ...boxProps } = props;
   const ref = props.ref ?? internalRef;
   const [bbox, setBbox] = useState<BBox | null>(null);
 
@@ -215,10 +215,10 @@ export const Selectable = (props: ComponentPropsWithRef<typeof Box> & {
     if (ref.current == null) return;
 
     const bbox = getBoundingClientRect(ref.current);
-    const x0 = bbox.left / 2
-    const y0 = bbox.top / 2
-    const x1 = bbox.left / 2 + bbox.width - 1
-    const y1 = bbox.top / 2 + bbox.height
+    const x0 = Math.floor(bbox.left / 2)
+    const y0 = Math.floor(bbox.top / 2)
+    const x1 = Math.floor(bbox.left / 2) + bbox.width - 1
+    const y1 = Math.floor(bbox.top / 2) + bbox.height
 
     setBbox([{ x: x0, y: y0 }, { x: x1, y: y1 }]);
   }, [ref]);
@@ -292,4 +292,4 @@ export const Selectable = (props: ComponentPropsWithRef<typeof Box> & {
       {props.children}
     </Box>
   )
-}
+})
