@@ -1,42 +1,11 @@
 import type { DOMElement } from "ink";
 
-const FlexDirection = {
-  Column: 0,
-  ColumnReverse: 1,
-  Row: 2,
-  RowReverse: 3
-} as const;
-
 export function measureLeft(node: DOMElement) {
   let left = node.yogaNode?.getComputedLeft() ?? 0;
-  let currentNode = node;
   let parent = node?.parentNode;
 
   while (parent) {
-    const direction = parent?.yogaNode?.getFlexDirection();
     left += parent.yogaNode?.getComputedLeft() ?? 0;
-
-    if (direction === FlexDirection.Row) {
-      for (const child of parent.childNodes) {
-        if (child === currentNode) {
-          break;
-        }
-        const width = child.yogaNode?.getComputedWidth();
-        left += width ?? 0;
-      }
-    } else if (direction === FlexDirection.RowReverse) {
-      const children = Array.from(parent.childNodes);
-      const currentIndex = children.indexOf(currentNode);
-      for (let i = currentIndex + 1; i < children.length; i++) {
-        const child = children[i];
-        if (child) {
-          const width = child.yogaNode?.getComputedWidth();
-          left += width ?? 0;
-        }
-      }
-    }
-
-    currentNode = parent;
     parent = parent.parentNode;
   }
 
@@ -45,34 +14,11 @@ export function measureLeft(node: DOMElement) {
 
 export function measureTop(node: DOMElement) {
   let top = node.yogaNode?.getComputedTop() ?? 0;
-  let currentNode = node;
   let parent = node?.parentNode;
 
   while (parent) {
-    const direction = parent?.yogaNode?.getFlexDirection();
     top += parent.yogaNode?.getComputedTop() ?? 0;
 
-    if (direction === FlexDirection.Column) {
-      for (const child of parent.childNodes) {
-        if (child === currentNode) {
-          break;
-        }
-        const height = child.yogaNode?.getComputedHeight();
-        top += height ?? 0;
-      }
-    } else if (direction === FlexDirection.ColumnReverse) {
-      const children = Array.from(parent.childNodes);
-      const currentIndex = children.indexOf(currentNode);
-      for (let i = currentIndex + 1; i < children.length; i++) {
-        const child = children[i];
-        if (child) {
-          const height = child.yogaNode?.getComputedHeight();
-          top += height ?? 0;
-        }
-      }
-    }
-
-    currentNode = parent;
     parent = parent.parentNode;
   }
 
@@ -123,4 +69,9 @@ export function getBoundingClientRect(node: DOMElement) {
       return this.top;
     }
   };
+}
+
+export function isPointInElement(element: DOMElement, x: number, y: number) {
+  const rect = getBoundingClientRect(element);
+  return x >= rect.left && rect.right > x && y >= rect.top && rect.bottom > y;
 }
