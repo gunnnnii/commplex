@@ -2,10 +2,10 @@ import { Box, useInput, useStdin, type DOMElement } from "ink"
 import { useEffect, useRef, useState, type ComponentProps, type PropsWithChildren } from "react"
 import { isTextNode } from "./node-tree-utils";
 import { anyMaybeSignals, getSignalFromOptions, normalizeOptions } from "./event-listener-utils";
-import { type Event, InputEvent, MouseEvent } from "./event";
+import { type Event, InputEvent, MouseEvent, type FocusEvent, type BlurEvent } from "./event";
 import { blur, focus, type Node } from "./node";
 import { isPointInElement } from "../../utilities/layout-measurements";
-import { log } from "../../utilities/logging/logger";
+import type { InputEventListener, FocusEventListener, BlurEventListener, MouseEventListener } from './event-types';
 
 const tree = new Map<DOMElement, InteractionNode>();
 
@@ -138,7 +138,31 @@ export class InteractionNode implements Node {
     this.#element = null;
   }
 
-  addEventListener(type: string, callback: EventListenerOrEventListenerObject | null, options?: AddEventListenerOptions | boolean): void {
+  addEventListener(
+    type: 'input',
+    callback: ((event: InputEvent) => void) | EventListenerObject | null,
+    options?: AddEventListenerOptions | boolean
+  ): void;
+  addEventListener(
+    type: 'focus',
+    callback: ((event: FocusEvent) => void) | EventListenerObject | null,
+    options?: AddEventListenerOptions | boolean
+  ): void;
+  addEventListener(
+    type: 'blur',
+    callback: ((event: BlurEvent) => void) | EventListenerObject | null,
+    options?: AddEventListenerOptions | boolean
+  ): void;
+  addEventListener(
+    type: 'mouse-down' | 'mouse-up' | 'mouse-move' | 'mouse-enter' | 'mouse-leave' | 'click',
+    callback: ((event: MouseEvent) => void) | EventListenerObject | null,
+    options?: AddEventListenerOptions | boolean
+  ): void;
+  addEventListener(
+    type: string,
+    callback: EventListenerOrEventListenerObject | null,
+    options?: AddEventListenerOptions | boolean
+  ): void {
     const normalizedOptions = normalizeOptions(options);
     const signal = anyMaybeSignals([this.#connectionController.signal, getSignalFromOptions(normalizedOptions)]);
 
@@ -158,7 +182,10 @@ export class InteractionNode implements Node {
     return windowNode.dispatchEventFromTarget(this, event);
   }
 
-  removeEventListener(type: string, callback: EventListenerOrEventListenerObject | null, options?: EventListenerOptions | boolean): void {
+  removeEventListener(type: string,
+    callback: EventListenerOrEventListenerObject | null,
+    options?: EventListenerOptions | boolean
+  ): void {
     this.#eventTarget.removeEventListener(type, callback, options);
   }
 }
@@ -295,15 +322,15 @@ export const FocusRoot = (props: PropsWithChildren<Props>) => {
 
 type Props = ComponentProps<typeof Box>;
 type ListenerProps = {
-  onInput?: EventListenerOrEventListenerObject | null;
-  onFocus?: EventListenerOrEventListenerObject | null;
-  onBlur?: EventListenerOrEventListenerObject | null;
-  onMouseDown?: EventListenerOrEventListenerObject | null;
-  onMouseUp?: EventListenerOrEventListenerObject | null;
-  onMouseMove?: EventListenerOrEventListenerObject | null;
-  onMouseEnter?: EventListenerOrEventListenerObject | null;
-  onMouseLeave?: EventListenerOrEventListenerObject | null;
-  onClick?: EventListenerOrEventListenerObject | null;
+  onInput?: InputEventListener;
+  onFocus?: FocusEventListener;
+  onBlur?: BlurEventListener;
+  onMouseDown?: MouseEventListener;
+  onMouseUp?: MouseEventListener;
+  onMouseMove?: MouseEventListener;
+  onMouseEnter?: MouseEventListener;
+  onMouseLeave?: MouseEventListener;
+  onClick?: MouseEventListener;
 }
 
 export const Interactive = (props: PropsWithChildren<Props & ListenerProps>) => {

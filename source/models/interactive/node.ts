@@ -1,7 +1,6 @@
 import type { DOMElement } from "ink";
 import { BlurEvent, type Event, FocusEvent, type InputEvent } from "./event";
 import { FocusManager } from "./focus";
-import { log } from "../../utilities/logging/logger";
 
 export interface Node extends EventTarget {
 	parent?: Node;
@@ -27,6 +26,32 @@ class WindowNode implements Node {
 		this.#connectionController.abort();
 	}
 
+	addEventListener(
+		type: "input",
+		callback: ((event: InputEvent) => void) | EventListenerObject | null,
+		options?: AddEventListenerOptions | boolean
+	): void;
+	addEventListener(
+		type: "focus",
+		callback: ((event: FocusEvent) => void) | EventListenerObject | null,
+		options?: AddEventListenerOptions | boolean
+	): void;
+	addEventListener(
+		type: "blur",
+		callback: ((event: BlurEvent) => void) | EventListenerObject | null,
+		options?: AddEventListenerOptions | boolean
+	): void;
+	addEventListener(
+		type:
+			| "mouse-down"
+			| "mouse-up"
+			| "mouse-move"
+			| "mouse-enter"
+			| "mouse-leave"
+			| "click",
+		callback: ((event: MouseEvent) => void) | EventListenerObject | null,
+		options?: AddEventListenerOptions | boolean
+	): void;
 	addEventListener(
 		type: string,
 		callback: EventListenerOrEventListenerObject | null,
