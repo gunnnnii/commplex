@@ -9,6 +9,7 @@ import { WatchLogsRoute } from './screens/process/logs/watch-logs.route.js'
 import { DocsRoute } from './screens/process/docs/docs.route.js'
 import { log, logPath } from './utilities/logging/logger.js'
 import { WATCH_LOGS_PROCESS } from './constants/processes.js'
+import { FocusRoot } from './models/interactive/interactive.js'
 
 observerBatching(batchedUpdates);
 
@@ -24,24 +25,25 @@ log("starting commplex log\n");
 log(`logs stored at ${logPath}\n`);
 
 render(
-	<MemoryRouter>
-		<Routes>
-			<Route path="/" Component={Root}>
-				<Route path="process" element={
-					<ErrorBoundary FallbackComponent={PrintedError}>
-						<ProcessLayout />
-					</ErrorBoundary>
-				}>
-					<Route path={WATCH_LOGS_PROCESS} element={<WatchLogsRoute />} />
-					<Route path=":process" index element={<LogsRoute />} />
-					<Route path=":process/docs" element={<DocsRoute />} />
+	<FocusRoot>
+		<MemoryRouter>
+			<Routes>
+				<Route path="/" Component={Root}>
+					<Route path="process" element={
+						<ErrorBoundary FallbackComponent={PrintedError}>
+							<ProcessLayout />
+						</ErrorBoundary>
+					}>
+						<Route path={WATCH_LOGS_PROCESS} element={<WatchLogsRoute />} />
+						<Route path=":process" index element={<LogsRoute />} />
+						<Route path=":process/docs" element={<DocsRoute />} />
+					</Route>
+					<Route index path="/*" element={<Text>Commplex</Text>} />
 				</Route>
-				<Route index path="/*" element={<Text>Commplex</Text>} />
-			</Route>
-		</Routes>
-	</MemoryRouter>,
+			</Routes>
+		</MemoryRouter>
+	</FocusRoot>,
 )
-
 function PrintedError(props: FallbackProps) {
 	const location = useLocation()
 

@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { Box, PixelTransform, useStdin, type DOMElement } from "ink";
 import { useState, useRef, useEffect, type ComponentPropsWithRef, useCallback } from "react";
-import { getBoundingClientRect } from "../utilities/layout-measurements";
+import { getBoundingClientRectForSelection } from "../utilities/layout-measurements";
 import { useSelectionStore } from "./selection-store";
 import { observer } from "mobx-react-lite";
 
@@ -214,7 +214,7 @@ export const Selectable = observer((props: ComponentPropsWithRef<typeof Box> & {
     if (typeof ref === 'function' || typeof ref === 'string') return;
     if (ref.current == null) return;
 
-    const bbox = getBoundingClientRect(ref.current);
+    const bbox = getBoundingClientRectForSelection(ref.current);
     const x0 = Math.floor(bbox.left / 2)
     const y0 = Math.floor(bbox.top / 2)
     const x1 = Math.floor(bbox.left / 2) + bbox.width - 1

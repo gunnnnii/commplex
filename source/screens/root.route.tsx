@@ -1,9 +1,8 @@
 import { Box, Spacer, Text, useInput } from "ink";
-import { useContext, useEffect, useState, type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
-import { Outlet, useMatch, useNavigate, useParams, useLocation } from "react-router";
+import { useContext, useEffect, useState, type PropsWithChildren, type ReactNode } from "react";
+import { Outlet, useMatch, useNavigate, useParams } from "react-router";
 import type { Script } from "../models/process/script.js";
 import { useRows } from "../utilities/hooks/dimensions.js";
-import { ErrorBoundary } from "react-error-boundary";
 import { match } from "ts-pattern";
 import { observer } from 'mobx-react-lite'
 import type { Process, ProcessState } from "../models/process/process.js";
@@ -11,6 +10,7 @@ import { ProcessStore, ProcessStoreContext, ProcessStoreProvider, } from "../mod
 import { flowResult, isFlowCancellationError } from "mobx";
 import { configLoader } from "../services/config-loader.js";
 import { groupBy } from "remeda";
+import { NavigationLink } from "../components/navigation/navigation-link.js";
 
 const ConfigLoadingScreen = observer(() => {
   const rows = useRows();
@@ -134,16 +134,11 @@ const ApplicationLayout = observer((props: { scripts: Script[] }) => {
   const { scripts } = props;
   const [store] = useState(() => new ProcessStore(scripts));
   const rows = useRows();
-  const navigate = useNavigate();
-  const location = useLocation();
 
   // Auto-navigate to first process if we're on the index route
   useEffect(() => {
-    if (location.pathname === '/' && store.firstProcess) {
-      const processName = encodeURIComponent(store.firstProcess.name);
-      navigate(`/process/${processName}`, { replace: true });
-    }
-  }, [location.pathname, store.firstProcess, navigate]);
+    windowNode.focusNext();
+  }, []);
 
   return (
     <ProcessStoreProvider store={store}>
@@ -211,26 +206,12 @@ const ScriptList = observer(() => {
   } = groupBy(processes, (process) => process.type);
 
   useInput((_input, key) => {
-    const previous = processes.findIndex(process => process.name === activeProcess) ?? -1;
-
     if (key.upArrow) {
-      const nextIdx = (previous - 1 + processes.length) % processes.length;
-      const next = processes.at(nextIdx);
-
-      if (next) {
-        const name = encodeURIComponent(next.name);
-        navigate(`process/${name}`);
-      }
+      windowNode.focusPrevious()
     }
 
     if (key.downArrow) {
-      const nextIdx = ((previous + 1) % processes.length);
-      const next = processes.at(nextIdx);
-
-      if (next) {
-        const name = encodeURIComponent(next.name);
-        navigate(`process/${name}`);
-      }
+      windowNode.focusNext()
     }
   });
 
@@ -311,24 +292,48 @@ const List = observer((props: {
   return (
     <Box flexDirection="column">
       {props.title ? <Text>{props.title}</Text> : null}
-      {props.processes.map((process, index) =>
-      (
-        <>
-          <Text
-            key={process.name}
-          >
-            {props.Indicator != null ? <props.Indicator status={process.state} /> : null}
-            <Text>{" "}</Text>
-            <Text underline={props.isItemSelected(process, index)}>
-              <ScriptListItem name={process.name} />
-            </Text>
-          </Text>
-        </>
-      )
-      )}
+      {props.processes.map(process => (
+        <ProcessLink
+          key={process.name}
+          process={process}
+          Indicator={props.Indicator}
+        />
+      ))}
     </Box>
   )
 })
+
+const ProcessLink = (props: { process: Process, Indicator?: (props: { status: ProcessState }) => ReactNode }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const process = props.process;
+  const indicator = props.Indicator != null ? <props.Indicator status={process.state} /> : null;
+
+  return (
+    <NavigationLink
+      to={`/process/${process.name}`}
+      borderStyle="arrow"
+      borderTop={false}
+      borderBottom={false}
+      borderLeft={false}
+      borderRight={isHovered}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      activeChildren={
+        <Text
+        >
+          {indicator}{" "}
+          <Text underline>{process.name}</Text>
+        </Text>
+      }
+    >
+      <Text
+      >
+        {indicator}{" "}
+        <Text underline={isHovered}>{process.name}</Text>
+      </Text>
+    </NavigationLink>
+  )
+}
 
 const SmallProcessStatusIndicator = observer((props: { status: ProcessState }) => {
   const errored = props.status.status === 'dead' // && props.status !== 0;
@@ -354,26 +359,6 @@ const SmallScriptStatusIndicator = observer((props: { status: ProcessState }) =>
     .otherwise(() => '◯')
 
   return (<Text>{icon}</Text>)
-})
-
-const InternalCommandListItem = observer((props: ComponentProps<typeof ScriptListItem>) => {
-  const activeProcess = useParams<"process">();
-  const store = useContext(ProcessStoreContext);
-  const process = store.processes.get(props.name);
-
-  const isActive = activeProcess.process === props.name;
-
-  return (
-    <Text underline={isActive}>{process?.name ?? props.name}</Text>
-  )
-})
-
-const ScriptListItem = observer((props: { name: string; }) => {
-  return (
-    <ErrorBoundary fallback={null}>
-      <InternalCommandListItem {...props} />
-    </ErrorBoundary>
-  )
 })
 
 function Sidebar(props: PropsWithChildren) {
