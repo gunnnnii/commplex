@@ -3,9 +3,10 @@ import { BlurEvent, type Event, FocusEvent, type InputEvent } from "./event";
 import { FocusManager } from "./focus";
 
 export interface Node extends EventTarget {
+	id: string;
 	parent?: Node;
 	children: Node[];
-	element?: DOMElement;
+	element?: DOMElement | null;
 
 	connect(): void;
 	disconnect(): void;

@@ -258,7 +258,6 @@ export class Scrollable {
         const lastMessage = messages.at(-1);
 
         if (
-          lastMessage != null &&
           lastMessage !== PADDING &&
           line.message.id === lastMessage?.id
         ) {

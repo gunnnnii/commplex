@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, type PropsWithChildren } from 'react';
-import { Box, measureElement, Text, useStdin, useStdout, useInput, type DOMElement, } from 'ink';
+import { Box, measureElement, Text, useStdin, useStdout, useInput, type DOMElement } from 'ink';
 import { observer } from 'mobx-react-lite';
 import { match } from 'ts-pattern';
 import { PADDING, Scrollable } from './scrollable.js';
@@ -23,6 +23,7 @@ export const ScrollView = observer((props: PropsWithChildren<{
   content: ScrollableContentContainer,
   justifyContent?: 'flex-end' | 'flex-start',
 }>) => {
+  const selectionId = useId();
   const view = useMemo(() => {
     return new Scrollable({ container: props.content });
   }, [props.content]);
@@ -55,12 +56,11 @@ export const ScrollView = observer((props: PropsWithChildren<{
     } else if (input === 'G' && view.hasNextLines) {
       // G = jump to bottom (vim style)
       view.scrollToBottom();
-    } else if (input === 'c' && selectionStore.hasSelections) {
+    } else if (input === 'c') {
       untracked(() => {
-        const activeSelection = selectionStore.activeSelection;
-        if (activeSelection) {
-          copy(activeSelection);
-        }
+        const selection = selectionStore.getSelection(selectionId)
+
+        if (selection) copy(selection);
       })
     }
   });
@@ -129,8 +129,6 @@ export const ScrollView = observer((props: PropsWithChildren<{
     }
   }, [view, view.hasNextLines])
 
-  const selectionId = useId();
-
   return (
     <Box
       flexDirection="row"
@@ -170,15 +168,16 @@ const Scrollbar = observer((props: { view: Scrollable }) => {
   const blocks = Array.from({ length: height }, (_, index) => (
     index === location ? (
       // biome-ignore lint/correctness/useJsxKeyInIterable: order of these doesn't matter
-      <Text bold={hackToPreventBoldFromLeaking}>░</Text>
+      <Text bold={hackToPreventBoldFromLeaking}> ░</Text>
     ) : (
       // biome-ignore lint/correctness/useJsxKeyInIterable: order of these doesn't matter
-      <Text bold={hackToPreventBoldFromLeaking}>█</Text>
+      <Text bold={hackToPreventBoldFromLeaking}> █</Text>
     )
   ))
   return (
     <Box
       flexDirection='column'
+      justifyContent='flex-end'
       gap={0}
     >
       {blocks}

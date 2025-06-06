@@ -5,8 +5,10 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const logStream = fs.createWriteStream(path.join(__dirname, 'commplex.log'), { flags: 'a' });
+const screenshotStream = fs.createWriteStream(path.join(__dirname, 'commplex_screenshot.log'), { flags: 'a' });
 
 export const logPath = logStream.path;
+export const screenshotPath = screenshotStream.path;
 
 // Simple log entry interface
 interface LogEntry {
@@ -58,6 +60,10 @@ export const log = (...args: string[]) => {
   logQueue.push({ content, timestamp });
   scheduleFlush();
 };
+
+export const logScreenshot = (screenshot: string) => {
+  screenshotStream.write(`${JSON.stringify({ content: screenshot })}\n`);
+}
 
 // Force flush any pending messages (useful for graceful shutdown)
 export const forceFlush = () => {

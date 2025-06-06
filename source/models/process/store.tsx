@@ -53,7 +53,7 @@ export class ProcessStore {
 
     if (process.autostart) process.connect()
       .catch((error) => {
-        if (!isFlowCancellationError(error)) {
+        if (error != null && error instanceof Error && !isFlowCancellationError(error)) {
           throw error;
         }
       });

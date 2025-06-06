@@ -15,7 +15,8 @@
 		"dev": "vite build --watch --mode development",
 		"dev:analyze": "ANALYZE=true vite build --watch --mode development",
 		"start": "node dist/cli.js",
-		"test": "prettier --check . && xo && ava"
+		"test": "prettier --check . && xo && ava",
+		"view-screenshot": "sed -n '4,5p' dist/commplex_screenshot.log | jq -r '.content' | less -R -S -F"
 	},
 	"files": [
 		"dist"
@@ -39,6 +40,7 @@
 	"devDependencies": {
 		"@babel/plugin-proposal-decorators": "^7.27.1",
 		"@biomejs/biome": "1.9.4",
+		"@total-typescript/ts-reset": "^0.6.1",
 		"@total-typescript/tsconfig": "^1.0.4",
 		"@types/node": "22",
 		"@types/react": "19.1.6",

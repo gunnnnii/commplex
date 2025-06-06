@@ -3,27 +3,30 @@ import type { SelectionRange } from './selection-store';
 import stripAnsi from 'strip-ansi';
 import clipboard from 'clipboardy';
 import { useCallback } from 'react';
+import { zip } from 'remeda';
 
 export function useCopy() {
-  const { screenshot } = useApp()
+  const { screenshot } = useApp();
 
   const copy = useCallback((selection: SelectionRange) => {
-    // screenshot gives the current screen as a string of characters
     const screen = stripAnsi(screenshot());
 
-    // split the screen into lines
-    const lines = screen.split('\n');
+    const firstRow = selection.rows.at(0)?.start.y;
 
-    // get the lines that are within the selection
-    const selectedLines = lines.slice(selection.start.y, selection.end.y + 1);
+    if (firstRow == null) return;
 
-    // get the characters that are within the selection
-    const selectedCharacters = selectedLines.map(line => line.slice(selection.start.x, selection.end.x + 1));
+    const lines = screen.split('\n').slice(firstRow);
 
-    // join the characters into a string
-    const selectedText = selectedCharacters.join('\n');
+    const selectedText = zip(lines, selection.rows).map(([line, row]) => {
+      const start = row.start.x;
+      const end = row.end.x;
+      const text = line.slice(start, end + 1).trimEnd();
+      return text;
+    }).join('\n');
+
     clipboard.writeSync(selectedText);
-  }, [screenshot])
+  }, [screenshot]);
 
   return copy;
 }
+

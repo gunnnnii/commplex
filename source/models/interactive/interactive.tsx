@@ -1,5 +1,5 @@
 import { Box, useInput, useStdin, type DOMElement } from "ink"
-import { useEffect, useRef, useState, type ComponentProps, type PropsWithChildren } from "react"
+import { useEffect, useRef, useState, type ComponentProps, type PropsWithChildren, type RefObject } from "react"
 import { isTextNode } from "./node-tree-utils";
 import { anyMaybeSignals, getSignalFromOptions, normalizeOptions } from "./event-listener-utils";
 import { type Event, InputEvent, MouseEvent, type FocusEvent, type BlurEvent } from "./event";
@@ -10,7 +10,7 @@ import type { InputEventListener, FocusEventListener, BlurEventListener, MouseEv
 const tree = new Map<DOMElement, InteractionNode>();
 
 export class InteractionNode implements Node {
-  readonly id = crypto.randomUUID();
+  id: string = crypto.randomUUID();
   #connectionController = new AbortController();
   #eventTarget = new EventTarget();
   #element: DOMElement | null = null;
@@ -26,9 +26,7 @@ export class InteractionNode implements Node {
     this.#parent = newParent;
   }
 
-  get element(): DOMElement {
-    if (this.#element == null) throw new Error('Node not connected');
-
+  get element(): DOMElement | null | undefined {
     return this.#element;
   }
 
@@ -179,6 +177,7 @@ export class InteractionNode implements Node {
         return this.#eventTarget.dispatchEvent(event);
       }
     }
+
     return windowNode.dispatchEventFromTarget(this, event);
   }
 
@@ -278,7 +277,6 @@ export const FocusRoot = (props: PropsWithChildren<Props>) => {
             if (!next) break;
 
             const element = next.element;
-
             if (element) {
               if (isPointInElement(element, x, y)) {
                 if (!enteredElements.has(next)) {
@@ -320,7 +318,7 @@ export const FocusRoot = (props: PropsWithChildren<Props>) => {
   return props.children;
 }
 
-type Props = ComponentProps<typeof Box>;
+type Props = ComponentProps<typeof Box> & { id?: string, ref?: RefObject<DOMElement | null> };
 type ListenerProps = {
   onInput?: InputEventListener;
   onFocus?: FocusEventListener;
@@ -335,7 +333,14 @@ type ListenerProps = {
 
 export const Interactive = (props: PropsWithChildren<Props & ListenerProps>) => {
   const [interactionNode] = useState(() => new InteractionNode());
-  const ref = useRef<DOMElement>(null);
+  const internalRef = useRef<DOMElement>(null);
+  const ref = props.ref ?? internalRef;
+
+  useEffect(() => {
+    if (props.id) {
+      interactionNode.id = props.id;
+    }
+  }, [interactionNode, props.id]);
 
   useEffect(() => {
     if (ref.current == null) return;
@@ -345,7 +350,7 @@ export const Interactive = (props: PropsWithChildren<Props & ListenerProps>) => 
     return () => {
       interactionNode.disconnect();
     }
-  }, [interactionNode]);
+  }, [interactionNode, ref]);
 
   useEventListeners(interactionNode, props);
 
@@ -358,7 +363,9 @@ export const Interactive = (props: PropsWithChildren<Props & ListenerProps>) => 
 
 export const Focusable = (props: PropsWithChildren<Props & ListenerProps>) => {
   const [interactionNode] = useState(() => new FocusableNode());
-  const ref = useRef<DOMElement>(null);
+  const internalRef = useRef<DOMElement>(null);
+  const ref = props.ref ?? internalRef;
+
 
   useEffect(() => {
     if (ref.current == null) return;
@@ -368,7 +375,7 @@ export const Focusable = (props: PropsWithChildren<Props & ListenerProps>) => {
     return () => {
       interactionNode.disconnect();
     }
-  }, [interactionNode]);
+  }, [interactionNode, ref]);
 
   useEventListeners(interactionNode, props);
 

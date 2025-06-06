@@ -21,5 +21,5 @@ export function getSignalFromOptions(
 export function anyMaybeSignals(
 	signals: (AbortSignal | undefined)[]
 ): AbortSignal {
-	return AbortSignal.any(signals.filter(Boolean) as AbortSignal[]);
+	return AbortSignal.any(signals.filter(Boolean));
 }

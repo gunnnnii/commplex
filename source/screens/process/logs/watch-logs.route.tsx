@@ -54,7 +54,7 @@ class WatchLogsContentContainer {
         // Try to parse each line as a JSON log entry
         let logEntry: LogEntry;
         try {
-          logEntry = JSON.parse(line.trim());
+          logEntry = JSON.parse(line.trim()) as any;
         } catch {
           // If it's not valid JSON, treat it as a regular message
           processedMessages.push({

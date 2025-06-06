@@ -50,7 +50,7 @@ const ProcessInitializer = observer((props: { scripts: Script[], store: ProcessS
     for (const process of store.processes.values()) {
       if (process.autostart && process.state.state === 'closed') {
         process.connect().catch((error) => {
-          if (!isFlowCancellationError(error)) {
+          if (error != null && error instanceof Error && !isFlowCancellationError(error)) {
             console.error(`Failed to auto-start process ${process.name}:`, error);
           }
         });
@@ -163,7 +163,7 @@ export const Root = observer(() => {
     if (configLoader.state === 'uninitialized') {
       const load = flowResult(configLoader.loadConfig());
       load.catch((error) => {
-        if (!isFlowCancellationError(error)) {
+        if (error != null && error instanceof Error && !isFlowCancellationError(error)) {
           console.error('Failed to load config:', error);
         }
       });
