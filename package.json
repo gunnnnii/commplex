@@ -13,6 +13,7 @@
 	"scripts": {
 		"build": "tsc -b && vite build",
 		"dev": "vite build --watch --mode development",
+		"dev:analyze": "ANALYZE=true vite build --watch --mode development",
 		"start": "node dist/cli.js",
 		"test": "prettier --check . && xo && ava"
 	},
@@ -33,7 +34,7 @@
 		"strip-ansi": "^7.1.0",
 		"ts-pattern": "^5.7.0",
 		"wrap-ansi": "^9.0.0",
-		"zod": "^3.25.7"
+		"zod": "^3.25.53"
 	},
 	"devDependencies": {
 		"@babel/plugin-proposal-decorators": "^7.27.1",
@@ -47,7 +48,8 @@
 		"prettier": "^2.8.7",
 		"type-fest": "^4.41.0",
 		"typescript": "^5.0.3",
-		"vite": "^6.3.5"
+		"vite": "^6.3.5",
+		"vite-bundle-analyzer": "^0.22.0"
 	},
 	"commplex": {
 		"includePackageScripts": false,

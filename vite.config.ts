@@ -5,14 +5,23 @@ import fs from "node:fs/promises";
 import { builtinModules } from "node:module";
 import pkgjson from './package.json' with { type: "json" };
 import type { PackageJson } from 'type-fest';
+import { analyzer } from 'vite-bundle-analyzer'
+import z from 'zod/v4';
 
 const entryFile = "cli";
 const sourceEntry = path.resolve(__dirname, "source", `${entryFile}.tsx`);
 const distEntry = path.resolve(__dirname, "dist", `${entryFile}.js`);
 
+const env = z.object({
+	ANALYZE: z.stringbool(),
+})
+.partial()
+.parse(process.env)
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
 	const isProduction = mode === "production";
+	const analyzerEnabled = env.ANALYZE
 
 	return {
 		build: {
@@ -25,10 +34,10 @@ export default defineConfig(({ mode }) => {
 				fileName: entryFile,
 			},
 			terserOptions: {
-				compress: isProduction,
+				compress: isProduction
 			},
 			rollupOptions: {
-				treeshake: isProduction,
+				treeshake: true,
 				external: [
 					...builtinModules,
 					...builtinModules.map((mod) => `node:${mod}`),
@@ -38,7 +47,15 @@ export default defineConfig(({ mode }) => {
 			emptyOutDir: true,
 		},
 		resolve: {
-			conditions: ["node", "module", "browser", "development|production"],
+				conditions: ["import", "module", "node", "development|production"],
+				alias: {
+					// Force react-router to use ESM build for better tree-shaking
+					'react-router': isProduction 
+						? path.resolve(__dirname, 'node_modules/react-router/dist/production/index.mjs')
+						: path.resolve(__dirname, 'node_modules/react-router/dist/development/index.mjs'),
+					// mobx assumes batchedUpdates is in react-dom, so we need to patch it to use ink's batchedUpdates
+					'react-dom': path.resolve(__dirname, 'node_modules/ink/build/index.js')
+				}
 		},
 		esbuild: {
 			supported: {
@@ -53,25 +70,7 @@ export default defineConfig(({ mode }) => {
 					],
 				},
 			}),
-			{
-				// something, somewhere - related to mobx-react-lite - causes `unstable_batchedUpdates` to be imported from `react-dom`
-				// ink has its own reconciler, so we fix the import to use that instead (after patching ink to expose its batchedUpdates implementation)
-				name: "fix-batched-updates",
-				generateBundle(_, bundle) {
-					for (const file of Object.values(bundle)) {
-						if (file.type === "chunk") {
-							if (file.code.includes("unstable_batchedUpdates")) {
-								const code = file.code;
-								const updated = code.replace(
-									/import\s*\{\s*unstable_batchedUpdates\s*\}\s*from\s*["']react-dom["']/,
-									`import { batchedUpdates as unstable_batchedUpdates } from 'ink'`
-								);
-								file.code = updated;
-							}
-						}
-					}
-				},
-			},
+			analyzerEnabled ? analyzer() : null,
 			{
 				name: "add-shebang",
 				async closeBundle() {
@@ -122,8 +121,9 @@ export default defineConfig(({ mode }) => {
 		],
 		define: {
 			"process.env.NODE_ENV": JSON.stringify(mode),
+			"process.env.DEV": JSON.stringify(!isProduction),
+			"process.env['DEV']": JSON.stringify(!isProduction),
+			'process.env["DEV"]': JSON.stringify(!isProduction),
 		},
 	};
 });
-
-//#!/usr/bin/env node
