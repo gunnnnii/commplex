@@ -1,8 +1,9 @@
 import { FocusableNode } from "./interactive";
-import type { Node } from "./node";
+import { focus, type Node } from "./node";
+import { getBoundingClientRect } from "../../utilities/layout-measurements";
+import { log } from "../../utilities/logging/logger";
 
 export class FocusManager {
-  #currentNode: FocusableNode | null = null;
   #rootNode: Node;
 
   constructor(rootNode: Node) {
@@ -10,33 +11,18 @@ export class FocusManager {
   }
 
   get currentNode(): FocusableNode | null {
-    return this.#currentNode;
-  }
-
-  focus() {
-    if (this.#currentNode) return;
-
-    const first = this.getFocusableNodes().at(0);
-    if (first) {
-      this.setFocus(first);
-    }
-  }
-
-  blur() {
-    if (this.#currentNode) {
-      this.#currentNode.blur();
-      this.#currentNode = null;
-    }
+    const activeElement = globalThis.windowNode.activeElement;
+    return activeElement instanceof FocusableNode ? activeElement : null;
   }
 
   focusNext() {
     const focusableNodes = this.getFocusableNodes();
     if (focusableNodes.length === 0) return;
 
-    const currentIndex = this.#currentNode ? focusableNodes.indexOf(this.#currentNode) : -1;
+    const currentIndex = this.currentNode ? focusableNodes.indexOf(this.currentNode) : -1;
     const nextIndex = (currentIndex + 1) % focusableNodes.length;
     if (focusableNodes[nextIndex]) {
-      this.setFocus(focusableNodes[nextIndex]);
+      focus(focusableNodes[nextIndex]);
     }
   }
 
@@ -44,25 +30,39 @@ export class FocusManager {
     const focusableNodes = this.getFocusableNodes();
     if (focusableNodes.length === 0) return;
 
-    const currentIndex = this.#currentNode ? focusableNodes.indexOf(this.#currentNode) : -1;
+    const currentIndex = this.currentNode ? focusableNodes.indexOf(this.currentNode) : -1;
     const prevIndex = (currentIndex - 1 + focusableNodes.length) % focusableNodes.length;
     if (focusableNodes[prevIndex]) {
-      this.setFocus(focusableNodes[prevIndex]);
+      focus(focusableNodes[prevIndex]);
     }
-  }
-
-  private setFocus(node: FocusableNode) {
-    if (this.#currentNode) {
-      this.#currentNode.blur();
-    }
-    this.#currentNode = node;
-    this.#currentNode.focus();
   }
 
   private getFocusableNodes(): FocusableNode[] {
     const nodes: FocusableNode[] = [];
     this.traverse(this.#rootNode, nodes);
-    return nodes;
+    return this.sortByLayoutOrder(nodes);
+  }
+
+  private sortByLayoutOrder(nodes: FocusableNode[]): FocusableNode[] {
+    return nodes.toSorted((a, b) => {
+      const aElement = a.element;
+      const bElement = b.element;
+
+      if (!aElement || !bElement) return 0;
+
+      const aRect = getBoundingClientRect(aElement);
+      const bRect = getBoundingClientRect(bElement);
+
+      if (!aRect || !bRect) return 0;
+
+      // Sort top to bottom first, then left to right
+      const xDiff = aRect.left - bRect.left;
+      if (xDiff !== 0) {
+        return xDiff;
+      }
+
+      return aRect.top - bRect.top;
+    });
   }
 
   private traverse(node: Node, nodes: FocusableNode[]) {

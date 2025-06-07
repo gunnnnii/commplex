@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import { type LinkProps, useNavigate, useMatch } from "react-router";
 import { omit, pick } from "remeda";
 import { Focusable } from "../../models/interactive/interactive";
+import { focus } from "../../models/interactive/node";
 
 type InkLinkProps =
   & ComponentProps<typeof Focusable>
@@ -22,23 +23,24 @@ export const NavigationLink = (props: InkLinkProps) => {
 
   return (
     <Focusable
+      id={toPath}
       flexGrow={0}
       flexShrink={1}
       flexDirection='row'
       {...focusableProps}
       onClick={(e) => {
+        props.onClick?.(e);
+
         if (!e.defaultPrevented) {
           navigate(to, { relative, state })
         }
-
-        props.onClick?.(e);
       }}
       onFocus={(e) => {
+        props.onFocus?.(e);
+
         if (!e.defaultPrevented) {
           navigate(to, { relative, state })
         }
-
-        props.onFocus?.(e);
       }}
     >
       {isActive ? props.activeChildren ?? props.children : props.children}

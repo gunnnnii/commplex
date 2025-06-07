@@ -6,8 +6,20 @@ import { type Event, InputEvent, MouseEvent, type FocusEvent, type BlurEvent } f
 import { blur, focus, type Node } from "./node";
 import { isPointInElement } from "../../utilities/layout-measurements";
 import type { InputEventListener, FocusEventListener, BlurEventListener, MouseEventListener } from './event-types';
+import { log } from "../../utilities/logging/logger";
 
 const tree = new Map<DOMElement, InteractionNode>();
+
+function handleNodeAddedToTree(node: InteractionNode) {
+  // If this is a focusable node and nothing is currently focused, focus it
+  if (node instanceof FocusableNode) {
+    const currentlyFocused = globalThis.windowNode.activeElement;
+    if (currentlyFocused === globalThis.windowNode) {
+      // Nothing is focused, focus this new focusable node
+      node.focus();
+    }
+  }
+}
 
 export class InteractionNode implements Node {
   id: string = crypto.randomUUID();
@@ -16,6 +28,10 @@ export class InteractionNode implements Node {
   #element: DOMElement | null = null;
   #parent: Node | null = null;
   children: Node[] = [];
+
+  get signal(): AbortSignal {
+    return this.#connectionController.signal;
+  }
 
   get parent(): Node {
     // biome-ignore lint/style/noNonNullAssertion: <explanation>
@@ -28,6 +44,14 @@ export class InteractionNode implements Node {
 
   get element(): DOMElement | null | undefined {
     return this.#element;
+  }
+
+  #abort() {
+    this.signal.addEventListener('abort', () => {
+      this.#connectionController = new AbortController();
+    }, { once: true });
+
+    this.#connectionController.abort();
   }
 
   #updateChildren(node: DOMElement) {
@@ -81,8 +105,7 @@ export class InteractionNode implements Node {
   }
 
   connectElement(node: DOMElement) {
-    this.#connectionController.abort();
-    this.#connectionController = new AbortController();
+    this.#abort();
 
     this.#element = node;
 
@@ -94,6 +117,9 @@ export class InteractionNode implements Node {
     this.parent.children.push(this);
 
     tree.set(node, this);
+
+    // Notify WindowNode that a new node has been added
+    handleNodeAddedToTree(this);
 
     // Use the extracted method for child traversal
     this.#updateChildren(node);
@@ -116,13 +142,13 @@ export class InteractionNode implements Node {
           if (mouseEvent.x === x && mouseEvent.y === y) {
             this.dispatchEvent(new MouseEvent('click', x, y, mouseEvent.button));
           }
-        }, { signal: this.#connectionController.signal, once: true });
-      }, { signal: this.#connectionController.signal })
+        }, { signal: this.signal, once: true });
+      }, { signal: this.signal })
     }
   }
 
   disconnect() {
-    this.#connectionController.abort();
+    this.#abort()
 
     // Make its children root nodes
     for (const child of this.children) {
@@ -162,22 +188,24 @@ export class InteractionNode implements Node {
     options?: AddEventListenerOptions | boolean
   ): void {
     const normalizedOptions = normalizeOptions(options);
-    const signal = anyMaybeSignals([this.#connectionController.signal, getSignalFromOptions(normalizedOptions)]);
+    const signal = anyMaybeSignals([this.signal, getSignalFromOptions(normalizedOptions)]);
 
     this.#eventTarget.addEventListener(type, callback, { ...normalizedOptions, signal });
   }
 
   dispatchEvent(event: Event): boolean {
     if (event.target != null) {
-      if (event.eventPhase === event.AT_TARGET && event.target === this) {
+      // Event is already being propagated through the tree, just dispatch locally
+      if (event.eventPhase === event.CAPTURING_PHASE ||
+        (event.eventPhase === event.AT_TARGET && event.target === this) ||
+        (event.eventPhase === event.BUBBLING_PHASE && event.target !== this)) {
         return this.#eventTarget.dispatchEvent(event);
       }
-
-      if (event.eventPhase === event.BUBBLING_PHASE && event.target !== this) {
-        return this.#eventTarget.dispatchEvent(event);
-      }
+      // Don't re-dispatch if we're not part of the current event phase
+      return true;
     }
 
+    // Only start new event propagation if this is a fresh event (target is null)
     return windowNode.dispatchEventFromTarget(this, event);
   }
 
@@ -221,7 +249,11 @@ export class FocusableNode extends InteractionNode {
 
 export const FocusRoot = (props: PropsWithChildren<Props>) => {
   useInput((input, key) => {
-    globalThis.windowNode.activeElement?.dispatchEvent(new InputEvent(input, key));
+    // Filter out mouse events - check for SGR mouse tracking patterns
+    const isMouseEvent = input.startsWith('\x1b[<') || /^\[<\d+;\d+;\d+[mM]/.test(input);
+    if (!isMouseEvent) {
+      globalThis.windowNode.activeElement?.dispatchEvent(new InputEvent(input, key));
+    }
   });
 
   const { stdin, setRawMode, isRawModeSupported } = useStdin();
@@ -277,6 +309,7 @@ export const FocusRoot = (props: PropsWithChildren<Props>) => {
             if (!next) break;
 
             const element = next.element;
+
             if (element) {
               if (isPointInElement(element, x, y)) {
                 if (!enteredElements.has(next)) {
@@ -290,6 +323,8 @@ export const FocusRoot = (props: PropsWithChildren<Props>) => {
                 next.dispatchEvent(new MouseEvent('mouse-leave', x, y, 0));
                 enteredElements.delete(next);
               }
+            } else {
+              queue.unshift(...next.children);
             }
           }
 
@@ -366,6 +401,11 @@ export const Focusable = (props: PropsWithChildren<Props & ListenerProps>) => {
   const internalRef = useRef<DOMElement>(null);
   const ref = props.ref ?? internalRef;
 
+  useEffect(() => {
+    if (props.id) {
+      interactionNode.id = props.id;
+    }
+  }, [interactionNode, props.id]);
 
   useEffect(() => {
     if (ref.current == null) return;
@@ -423,7 +463,15 @@ function useEventListeners(node: InteractionNode, listeners: ListenerProps) {
     }
 
     if (listeners.onClick) {
-      node.addEventListener('click', listeners.onClick, { signal: controller.signal });
+      node.addEventListener('click', (event) => {
+        listeners.onClick?.(event)
+
+        if (event.defaultPrevented) return;
+
+        if (node instanceof FocusableNode) {
+          node.focus();
+        }
+      }, { signal: controller.signal });
     }
 
     return () => {

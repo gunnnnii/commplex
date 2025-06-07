@@ -1,11 +1,25 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inspect } from 'node:util';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const logStream = fs.createWriteStream(path.join(__dirname, 'commplex.log'), { flags: 'a' });
-const screenshotStream = fs.createWriteStream(path.join(__dirname, 'commplex_screenshot.log'), { flags: 'a' });
+
+// Clear existing log files before creating streams
+const logFilePath = path.join(__dirname, 'commplex.log');
+const screenshotFilePath = path.join(__dirname, 'commplex_screenshot.log');
+
+// Clear the files by writing empty content
+try {
+  fs.writeFileSync(logFilePath, '');
+  fs.writeFileSync(screenshotFilePath, '');
+} catch (error) {
+  // Files may not exist yet, which is fine
+}
+
+const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
+const screenshotStream = fs.createWriteStream(screenshotFilePath, { flags: 'a' });
 
 export const logPath = logStream.path;
 export const screenshotPath = screenshotStream.path;
@@ -48,14 +62,18 @@ function scheduleFlush() {
   }, FLUSH_INTERVAL_MS);
 }
 
-export const log = (...args: string[]) => {
-  let content = args.join(' ');
+export const log = (...args: unknown[]) => {
+  const timestamp = new Date().toISOString();
+  let content = '';
+
+  for (const arg of args) {
+    content += inspect(arg);
+    content += " "
+  }
 
   if (content.endsWith('\n')) {
     content = content.slice(0, -1);
   }
-
-  const timestamp = new Date().toISOString();
 
   logQueue.push({ content, timestamp });
   scheduleFlush();

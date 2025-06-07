@@ -11,6 +11,7 @@ import { flowResult, isFlowCancellationError } from "mobx";
 import { configLoader } from "../services/config-loader.js";
 import { groupBy } from "remeda";
 import { NavigationLink } from "../components/navigation/navigation-link.js";
+import { List } from "../models/interactive/focus-groups.js";
 
 const ConfigLoadingScreen = observer(() => {
   const rows = useRows();
@@ -205,15 +206,15 @@ const ScriptList = observer(() => {
     devtask: devtaskList = []
   } = groupBy(processes, (process) => process.type);
 
-  useInput((_input, key) => {
-    if (key.upArrow) {
-      windowNode.focusPrevious()
-    }
+  // useInput((_input, key) => {
+  //   if (key.upArrow) {
+  //     windowNode.focusPrevious()
+  //   }
 
-    if (key.downArrow) {
-      windowNode.focusNext()
-    }
-  });
+  //   if (key.downArrow) {
+  //     windowNode.focusNext()
+  //   }
+  // });
 
   const isOnDocPage = useMatch("process/:process/docs")
 
@@ -241,50 +242,60 @@ const ScriptList = observer(() => {
   })
 
   return (
-    <Box flexDirection="column" gap={1}>
-      {serviceList.length > 0 ? (
-        <List
-          Indicator={SmallProcessStatusIndicator}
-          processes={serviceList}
-          isItemSelected={(process) => process.name === activeProcess}
-        />
-      ) : null}
-      {taskList.length > 0 ? (
-        <List
-          title="Tasks"
-          Indicator={SmallProcessStatusIndicator}
-          processes={taskList}
-          isItemSelected={(process) => process.name === activeProcess}
-        />
-      ) : null}
-      {scriptList.length > 0 ? (
-        <List
-          title="Package Scripts"
-          Indicator={SmallScriptStatusIndicator}
-          processes={scriptList}
-          isItemSelected={(process) => process.name === activeProcess}
-        />
-      ) : null}
-      {import.meta.env.MODE === 'development' && devserviceList.length > 0 ? (
-        <List
-          title="Development"
-          Indicator={SmallProcessStatusIndicator}
-          processes={devserviceList}
-          isItemSelected={(process) => process.name === activeProcess}
-        />
-      ) : null}
-      {import.meta.env.MODE === 'development' && devtaskList.length > 0 ? (
-        <List
-          Indicator={SmallProcessStatusIndicator}
-          processes={devtaskList}
-          isItemSelected={(process) => process.name === activeProcess}
-        />
-      ) : null}
-    </Box>
+    <List id="parent-list">
+      <Box flexDirection="column" gap={1}>
+        {serviceList.length > 0 ? (
+          <ProcessNavigationList
+            Indicator={SmallProcessStatusIndicator}
+            processes={serviceList}
+            isItemSelected={(process) => process.name === activeProcess}
+          />
+        ) : null}
+        <List id="task-list">
+          {taskList.length > 0 ? (
+            <ProcessNavigationList
+              title="Tasks"
+              Indicator={SmallProcessStatusIndicator}
+              processes={taskList}
+              isItemSelected={(process) => process.name === activeProcess}
+            />
+          ) : null}
+        </List>
+        <List id="script-list">
+          {scriptList.length > 0 ? (
+            <ProcessNavigationList
+              title="Package Scripts"
+              Indicator={SmallScriptStatusIndicator}
+              processes={scriptList}
+              isItemSelected={(process) => process.name === activeProcess}
+            />
+          ) : null}
+        </List>
+        <List id="devservice-list">
+          {import.meta.env.MODE === 'development' && devserviceList.length > 0 ? (
+            <ProcessNavigationList
+              title="Development"
+              Indicator={SmallProcessStatusIndicator}
+              processes={devserviceList}
+              isItemSelected={(process) => process.name === activeProcess}
+            />
+          ) : null}
+        </List>
+        <List id="devtask-list">
+          {import.meta.env.MODE === 'development' && devtaskList.length > 0 ? (
+            <ProcessNavigationList
+              Indicator={SmallProcessStatusIndicator}
+              processes={devtaskList}
+              isItemSelected={(process) => process.name === activeProcess}
+            />
+          ) : null}
+        </List>
+      </Box>
+    </List>
   );
 })
 
-const List = observer((props: {
+const ProcessNavigationList = observer((props: {
   title?: string; processes: Process[],
   isItemSelected: (item: Process, index: number) => boolean,
   Indicator?: (props: { status: ProcessState }) => ReactNode,

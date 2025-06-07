@@ -8,6 +8,28 @@ export class Event extends NativeEvent {
 	override AT_TARGET = 2 as const;
 	override BUBBLING_PHASE = 3 as const;
 	override target!: EventTarget;
+
+	#propagationStopped = false;
+	#immediatePropagationStopped = false;
+
+	override stopPropagation(): void {
+		super.stopPropagation();
+		this.#propagationStopped = true;
+	}
+
+	override stopImmediatePropagation(): void {
+		super.stopImmediatePropagation();
+		this.#immediatePropagationStopped = true;
+		this.#propagationStopped = true;
+	}
+
+	get propagationStopped(): boolean {
+		return this.#propagationStopped;
+	}
+
+	get immediatePropagationStopped(): boolean {
+		return this.#immediatePropagationStopped;
+	}
 }
 
 export class InputEvent extends Event {
@@ -49,14 +71,16 @@ export class MouseEvent extends Event {
 	}
 }
 
+let id = 0;
 export class FocusEvent extends Event {
+	id = id++;
 	constructor() {
-		super("focus", { bubbles: true });
+		super("focus", { bubbles: false });
 	}
 }
 
 export class BlurEvent extends Event {
 	constructor() {
-		super("blur", { bubbles: true });
+		super("blur", { bubbles: false });
 	}
 }

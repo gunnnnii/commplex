@@ -1,6 +1,19 @@
 import type { DOMElement } from "ink";
-import { BlurEvent, type Event, FocusEvent, type InputEvent } from "./event";
+import {
+	BlurEvent,
+	type Event,
+	FocusEvent,
+	type InputEvent,
+	type MouseEvent,
+} from "./event";
 import { FocusManager } from "./focus";
+import { log } from "../../utilities/logging/logger";
+import type { FocusableNode } from "./interactive";
+import {
+	normalizeOptions,
+	retrieveWrappedListener,
+	wrapCaptureListener,
+} from "./event-listener-utils";
 
 export interface Node extends EventTarget {
 	id: string;
@@ -55,10 +68,11 @@ class WindowNode implements Node {
 	): void;
 	addEventListener(
 		type: string,
-		callback: EventListenerOrEventListenerObject | null,
+		listener: EventListenerOrEventListenerObject | null,
 		options?: AddEventListenerOptions | boolean
 	): void {
-		this.#eventTarget.addEventListener(type, callback, options);
+		const wrappedListener = wrapCaptureListener(listener, options);
+		this.#eventTarget.addEventListener(type, wrappedListener, options);
 	}
 
 	dispatchEvent(event: Event): boolean {
@@ -73,20 +87,46 @@ class WindowNode implements Node {
 			current = current.parent;
 		}
 
-		// event.eventPhase = event.CAPTURING_PHASE;
-		// windowNode.dispatchEvent(event);
-		// for (const node of path) {
-		//   node.#eventTarget.dispatchEvent(event);
-		// }
-
-		event.eventPhase = event.AT_TARGET;
+		// Capturing phase - from root to target
+		event.eventPhase = event.CAPTURING_PHASE;
 		event.target = target;
+
+		// Dispatch on window first
+		this.dispatchEvent(event);
+		if (event.propagationStopped) {
+			return !event.defaultPrevented;
+		}
+
+		// Then dispatch on each parent from root to target
+		for (let i = path.length - 1; i >= 0; i--) {
+			const node = path[i];
+			if (node) {
+				node.dispatchEvent(event);
+				if (event.propagationStopped) {
+					return !event.defaultPrevented;
+				}
+			}
+		}
+
+		// Target phase
+		event.eventPhase = event.AT_TARGET;
 		target.dispatchEvent(event);
 
-		if (event.bubbles) {
+		if (event instanceof FocusEvent) {
+			log(target.id, event.id, "focusing at target", path);
+		}
+
+		// Bubbling phase - only if event bubbles
+		if (event.bubbles && !event.propagationStopped) {
 			event.eventPhase = event.BUBBLING_PHASE;
 			for (const node of path) {
+				if (event instanceof FocusEvent) {
+					log(node.id, event.id, "bubbling at node", path);
+				}
 				node.dispatchEvent(event);
+				if (event.propagationStopped) {
+					break;
+				}
 			}
 		}
 		return !event.defaultPrevented;
@@ -94,14 +134,22 @@ class WindowNode implements Node {
 
 	removeEventListener(
 		type: string,
-		callback: EventListenerOrEventListenerObject | null,
+		listener: EventListenerOrEventListenerObject | null,
 		options?: EventListenerOptions | boolean
 	): void {
-		this.#eventTarget.removeEventListener(type, callback, options);
+		this.#eventTarget.removeEventListener(
+			type,
+			retrieveWrappedListener(listener),
+			options
+		);
 	}
 
-	focus() {
-		this.#focusManager.focus();
+	focus(node: FocusableNode) {
+		focus(node);
+	}
+
+	blur(node: FocusableNode) {
+		blur(node);
 	}
 
 	focusNext() {
@@ -113,24 +161,13 @@ class WindowNode implements Node {
 	}
 
 	get activeElement() {
-		return this.#focusManager.currentNode ?? this;
+		return activeNode;
 	}
 }
 
 // Attach WindowNode to globalThis
 globalThis.windowNode = new WindowNode();
 globalThis.windowNode.connect();
-
-globalThis.windowNode.addEventListener("input", (event) => {
-	const evt = event as InputEvent;
-	if (evt.key.tab) {
-		if (evt.key.shift) {
-			globalThis.windowNode.focusPrevious();
-		} else {
-			globalThis.windowNode.focusNext();
-		}
-	}
-});
 
 let activeNode: Node = globalThis.windowNode;
 
@@ -142,12 +179,12 @@ export function focus(node: Node) {
 	}
 
 	activeNode = node;
-	node.dispatchEvent(new FocusEvent());
+	globalThis.windowNode.dispatchEventFromTarget(node, new FocusEvent());
 }
 
 export function blur(node: Node) {
 	if (activeNode === node) {
-		activeNode?.dispatchEvent(new BlurEvent());
+		globalThis.windowNode.dispatchEventFromTarget(node, new BlurEvent());
 		activeNode = windowNode;
 	}
 }
