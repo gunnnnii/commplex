@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vite';
 import viteConfig from './vite.config';
 
 export default defineConfig({
@@ -6,7 +6,5 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.{ts,tsx}'],
-    setupFiles: ['./tests/helpers/setup.ts']
-  }
+  },
 });
