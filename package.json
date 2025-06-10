@@ -16,6 +16,7 @@
 		"dev:analyze": "ANALYZE=true vite build --watch --mode development",
 		"start": "node dist/cli.js",
 		"test": "prettier --check . && xo && ava",
+		"test:focus": "./tests/run-tests.mjs tests/models/interactive/focus-navigation.test.tsx",
 		"view-screenshot": "sed -n '4,5p' dist/commplex_screenshot.log | jq -r '.content' | less -R -S -F"
 	},
 	"files": [
@@ -49,6 +50,7 @@
 		"chalk": "^5.4.1",
 		"ink-testing-library": "^3.0.0",
 		"prettier": "^2.8.7",
+		"tsx": "^4.19.4",
 		"type-fest": "^4.41.0",
 		"typescript": "^5.0.3",
 		"vite": "^6.3.5",
