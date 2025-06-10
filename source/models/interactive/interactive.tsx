@@ -43,7 +43,9 @@ export class InteractionNode implements Node {
   }
 
   get element(): DOMElement | null | undefined {
-    return this.#element;
+    if (this.#element?.yogaNode)
+      return this.#element;
+    return null;
   }
 
   #abort() {
@@ -140,7 +142,7 @@ export class InteractionNode implements Node {
 
           // the proper implementation of this is a bit more complex, as it would check if the mouse-up happens on the same element - rather then just checking if the coordinates have changed (that is enough for double click though)
           if (mouseEvent.x === x && mouseEvent.y === y) {
-            this.dispatchEvent(new MouseEvent('click', x, y, mouseEvent.button));
+            windowNode.dispatchEventFromTarget(this, new MouseEvent('click', x, y, mouseEvent.button));
           }
         }, { signal: this.signal, once: true });
       }, { signal: this.signal })
@@ -248,107 +250,102 @@ export class FocusableNode extends InteractionNode {
 }
 
 export const FocusRoot = (props: PropsWithChildren<Props>) => {
+  const previousX = useRef<number | undefined>(undefined);
+  const previousY = useRef<number | undefined>(undefined);
+  const previousEventCode = useRef<number | undefined>(undefined);
+  const previousPressed = useRef<boolean | undefined>(undefined);
+  const enteredElementsRef = useRef<Set<Node>>(new Set());
+
   useInput((input, key) => {
     // Filter out mouse events - check for SGR mouse tracking patterns
-    const isMouseEvent = input.startsWith('\x1b[<') || /^\[<\d+;\d+;\d+[mM]/.test(input);
-    if (!isMouseEvent) {
-      globalThis.windowNode.activeElement?.dispatchEvent(new InputEvent(input, key));
-    }
-  });
+    const mouseEventData = /^\[<(\d+);(\d+);(\d+)([mM])/.exec(input);
 
-  const { stdin, setRawMode, isRawModeSupported } = useStdin();
+    if (mouseEventData == null) {
+      globalThis.windowNode
+        .dispatchEventFromTarget(
+          globalThis.windowNode.activeElement,
+          new InputEvent(input, key)
+        );
+    } else {
+      const enteredElements = enteredElementsRef.current;
 
-  useEffect(() => {
-    if (!isRawModeSupported) return;
+      const [_, code, col, row, pressRelease] = mouseEventData;
 
-    setRawMode(true);
+      if (code == null || col == null || row == null || pressRelease == null) return;
 
-    const enteredElements = new Set<Node>();
+      const eventCode = Number.parseInt(code, 10);
+      const pressed = pressRelease === 'M';
+      const x = Number.parseInt(col, 10) - 1;
+      const y = Number.parseInt(row, 10);
 
-    let previousX: number;
-    let previousY: number;
-    let previousEventCode: number;
-    let previousPressed: boolean;
+      if (
+        previousX.current === x &&
+        previousY.current === y &&
+        previousEventCode.current === eventCode &&
+        previousPressed.current === pressed
+      ) return;
 
-    const handler = (buffer: Buffer<ArrayBufferLike>) => {
-      const chunk = buffer.toString()
+      previousX.current = x;
+      previousY.current = y;
+      previousEventCode.current = eventCode;
+      previousPressed.current = pressed;
 
-      // Parse mouse tracking events in SGR mode (\x1b[<code;col;row[mM])
-      if (chunk.startsWith('\x1b[<')) {
-        // biome-ignore lint/suspicious/noControlCharactersInRegex: SGR mouse tracking format
-        const match = /\x1b\[<(\d+);(\d+);(\d+)([mM])/.exec(chunk);
-        if (match) {
-          const [_, code, col, row, pressRelease] = match;
+      for (const enteredNode of Array.from(enteredElements).reverse()) {
+        const isInElement = enteredNode.element != null && isPointInElement(enteredNode.element, x, y);
 
-          if (code == null || col == null || row == null || pressRelease == null) return;
-
-          const eventCode = Number.parseInt(code, 10);
-          const pressed = pressRelease === 'M';
-          const x = Number.parseInt(col, 10) - 1;
-          const y = Number.parseInt(row, 10);
-
-          if (
-            previousX === x &&
-            previousY === y &&
-            previousEventCode === eventCode &&
-            previousPressed === pressed
-          ) return;
-
-          previousX = x;
-          previousY = y;
-          previousEventCode = eventCode;
-          previousPressed = pressed;
-
-          const children = windowNode.children;
-
-          const queue: Node[] = [...children];
-          let target: Node | undefined = undefined;
-
-          while (queue.length > 0) {
-            const next = queue.shift();
-            if (!next) break;
-
-            const element = next.element;
-
-            if (element) {
-              if (isPointInElement(element, x, y)) {
-                if (!enteredElements.has(next)) {
-                  next.dispatchEvent(new MouseEvent('mouse-enter', x, y, 0));
-                  enteredElements.add(next);
-                }
-
-                queue.unshift(...next.children);
-                target = next;
-              } else if (enteredElements.has(next)) {
-                next.dispatchEvent(new MouseEvent('mouse-leave', x, y, 0));
-                enteredElements.delete(next);
-              }
-            } else {
-              queue.unshift(...next.children);
-            }
-          }
-
-          target ??= windowNode;
-
-          if (eventCode === 0) {
-            target?.dispatchEvent(new MouseEvent(pressed ? 'mouse-down' : 'mouse-up', x, y, 0));
-          }
-          if (eventCode === 32 || eventCode === 35) {
-            target?.dispatchEvent(new MouseEvent('mouse-move', x, y, 0));
-          }
-
+        if (!isInElement) {
+          enteredElements.delete(enteredNode);
+          const event = new MouseEvent('mouse-leave', x, y, 0);
+          globalThis.windowNode.dispatchEventFromTarget(enteredNode, event);
         }
       }
+
+      const children = windowNode.children;
+
+      const queue: Node[] = [...children];
+      let target: Node = windowNode;
+
+      while (queue.length > 0) {
+        const next = queue.shift();
+
+        if (!next) break;
+
+        const element = next.element;
+
+        if (element) {
+          const hasEntered = enteredElements.has(next);
+          const isInElement = isPointInElement(element, x, y);
+
+          if (isInElement) {
+            queue.unshift(...next.children);
+            target = next;
+          }
+
+          if (isInElement && !hasEntered) {
+            log("mouse-enter", { next });
+            enteredElements.add(next);
+            const event = new MouseEvent('mouse-enter', x, y, 0);
+            globalThis.windowNode
+              .dispatchEventFromTarget(
+                next,
+                event
+              );
+          }
+        } else if (element == null) {
+          queue.unshift(...next.children);
+        }
+      }
+
+      if (eventCode === 0) {
+        globalThis.windowNode
+          .dispatchEventFromTarget(target, new MouseEvent(pressed ? 'mouse-down' : 'mouse-up', x, y, 0))
+      }
+      if (eventCode === 32 || eventCode === 35) {
+        globalThis.windowNode
+          .dispatchEventFromTarget(target, new MouseEvent("mouse-move", x, y, 0))
+      }
     }
-
-    stdin.on('data', handler)
-
-    return () => {
-      setRawMode(false);
-      stdin.off('data', handler);
-    }
-  }, [isRawModeSupported, setRawMode, stdin]);
-
+  });
 
   return props.children;
 }

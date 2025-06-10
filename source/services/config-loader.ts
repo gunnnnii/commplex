@@ -89,13 +89,6 @@ export class ConfigLoader {
 					pkg.scripts as Record<string, unknown>
 				);
 
-				// Log package scripts in development
-				if (import.meta.env.MODE === "development") {
-					setTimeout(() => {
-						log(JSON.stringify(pkgScripts, null, 2));
-					}, 5000);
-				}
-
 				scripts.push(...pkgScripts);
 			}
 		}

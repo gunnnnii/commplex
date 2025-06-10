@@ -206,16 +206,6 @@ const ScriptList = observer(() => {
     devtask: devtaskList = []
   } = groupBy(processes, (process) => process.type);
 
-  // useInput((_input, key) => {
-  //   if (key.upArrow) {
-  //     windowNode.focusPrevious()
-  //   }
-
-  //   if (key.downArrow) {
-  //     windowNode.focusNext()
-  //   }
-  // });
-
   const isOnDocPage = useMatch("process/:process/docs")
 
   useInput((input, key) => {

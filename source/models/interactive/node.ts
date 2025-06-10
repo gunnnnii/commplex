@@ -34,7 +34,31 @@ class WindowNode implements Node {
 	parent: undefined;
 	children: Node[] = [];
 
-	connect(): void {}
+	connect(): void {
+		// Handle tab navigation when no focus groups are active
+		this.addEventListener(
+			"input",
+			(event) => {
+				// Only handle if window itself is focused (no focus groups active)
+				if (this.activeElement !== this) return;
+
+				const { key } = event;
+
+				if (key.tab) {
+					event.stopImmediatePropagation();
+
+					log("window-level tab navigation", { shift: key.shift });
+
+					if (key.shift) {
+						this.focusPrevious();
+					} else {
+						this.focusNext();
+					}
+				}
+			},
+			{ signal: this.#connectionController.signal }
+		);
+	}
 
 	disconnect(): void {
 		this.#connectionController.abort();
@@ -91,12 +115,6 @@ class WindowNode implements Node {
 		event.eventPhase = event.CAPTURING_PHASE;
 		event.target = target;
 
-		// Dispatch on window first
-		this.dispatchEvent(event);
-		if (event.propagationStopped) {
-			return !event.defaultPrevented;
-		}
-
 		// Then dispatch on each parent from root to target
 		for (let i = path.length - 1; i >= 0; i--) {
 			const node = path[i];
@@ -112,17 +130,10 @@ class WindowNode implements Node {
 		event.eventPhase = event.AT_TARGET;
 		target.dispatchEvent(event);
 
-		if (event instanceof FocusEvent) {
-			log(target.id, event.id, "focusing at target", path);
-		}
-
 		// Bubbling phase - only if event bubbles
 		if (event.bubbles && !event.propagationStopped) {
 			event.eventPhase = event.BUBBLING_PHASE;
 			for (const node of path) {
-				if (event instanceof FocusEvent) {
-					log(node.id, event.id, "bubbling at node", path);
-				}
 				node.dispatchEvent(event);
 				if (event.propagationStopped) {
 					break;

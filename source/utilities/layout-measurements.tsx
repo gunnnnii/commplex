@@ -202,6 +202,8 @@ export function getBoundingClientRect(node: DOMElement) {
 }
 
 export function isPointInElement(element: DOMElement, x: number, y: number) {
+  if (element.yogaNode == null) return false;
+
   const rect = getBoundingClientRect(element);
   return x >= rect.left && rect.right > x && y >= rect.top && rect.bottom > y;
 }

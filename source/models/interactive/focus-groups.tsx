@@ -15,7 +15,14 @@ export class FocusGroup extends InteractionNode {
   get focusableChildren(): FocusableNode[] {
     const focusable: FocusableNode[] = [];
     this.traverseForFocusable(this, focusable);
-    return this.sortByLayoutOrder(focusable);
+    const sorted = this.sortByLayoutOrder(focusable);
+
+    // Add debug logging for focusable children
+    if (sorted.length === 0) {
+      log("no focusable children found", { groupId: this.id, childrenCount: this.children.length });
+    }
+
+    return sorted;
   }
 
   protected sortByLayoutOrder(nodes: FocusableNode[]): FocusableNode[] {
@@ -117,6 +124,13 @@ export class FocusGroup extends InteractionNode {
       const focusableChildren = this.focusableChildren;
       const index = focusableChildren.indexOf(target);
 
+      log("focus event", {
+        groupId: this.id,
+        targetId: target.id,
+        index,
+        wasActive: this.#isActive
+      });
+
       if (index !== -1) {
         this.#currentIndex = index;
         this.#activate();
@@ -129,7 +143,16 @@ export class FocusGroup extends InteractionNode {
       // Check if focus is moving to another node in our group
       setImmediate(() => {
         const focusableChildren = this.focusableChildren;
-        const anyFocused = focusableChildren.some((n: FocusableNode) => n === globalThis.windowNode.activeElement);
+        const activeElement = globalThis.windowNode.activeElement;
+        const anyFocused = focusableChildren.some((n: FocusableNode) => n === activeElement);
+
+        log("blur check", {
+          groupId: this.id,
+          activeElementId: activeElement?.id,
+          anyFocused,
+          focusableCount: focusableChildren.length,
+          isActive: this.#isActive
+        });
 
         if (!anyFocused) {
           log("no focus in group, deactivating", this.id);
@@ -165,53 +188,111 @@ export class FocusGroup extends InteractionNode {
     // Handle tab navigation between focus groups
     globalThis.windowNode.addEventListener('input', (event) => {
       if (!this.isActive) return;
-      log('propagation stopped', this.id, event.propagationStopped);
 
       const inputEvent = event as InputEvent;
       const { key } = inputEvent;
 
       if (key.tab) {
+        // Prevent any further processing of this event
+        event.stopImmediatePropagation();
+
+        log('handling tab navigation', this.id, { shift: key.shift, propagationStopped: event.propagationStopped });
+
         if (key.shift) {
           this.navigateToPreviousGroup();
         } else {
           this.navigateToNextGroup();
         }
-
-        event.stopPropagation();
       }
     }, { signal: this.keyboardAbortController.signal });
   }
 
   private navigateToNextGroup(): void {
-    const nextGroup = this.findNextFocusGroup();
-    const firstChild = nextGroup?.focusableChildren.at(0);
-    if (nextGroup && nextGroup !== this && firstChild) {
-      log("navigating to next group - deactivating", this.id, nextGroup.id);
-      // Only deactivate after confirming we have a valid next group
+    // 1. First try to find child groups
+    const childGroups = this.getChildFocusGroups();
+    const firstChildGroup = childGroups.at(0);
+    if (firstChildGroup?.focusableChildren.length) {
+      log("navigating to first child group", this.id, firstChildGroup.id);
       this.#deactivate();
-
-      // Focus the first focusable child in the next group
-      firstChild.focus();
-    } else {
-      log("no next group, focusing first child", this.id);
-      this.focusableChildren.at(0)?.focus();
+      firstChildGroup.focusableChildren.at(0)?.focus();
+      return;
     }
+
+    // 2. Then try sibling groups
+    const siblingGroups = this.getSiblingFocusGroups();
+    const currentIndex = siblingGroups.indexOf(this);
+    if (currentIndex !== -1 && currentIndex < siblingGroups.length - 1) {
+      const nextSibling = siblingGroups.at(currentIndex + 1);
+      if (nextSibling?.focusableChildren.length) {
+        log("navigating to next sibling group", this.id, nextSibling.id);
+        this.#deactivate();
+        nextSibling.focusableChildren.at(0)?.focus();
+        return;
+      }
+    }
+
+    // 3. At the end of siblings - go to parent and focus its next item
+    const parent = this.getParentFocusGroup();
+    if (parent) {
+      log("going to parent and focusing next", this.id, parent.id);
+      this.#deactivate();
+      if (!parent.focusNext()) {
+        // Parent couldn't focus next (at end) - deactivate parent too
+        parent.#deactivate();
+      }
+      return;
+    }
+
+    // 4. No parent (root level) - try to cycle to first sibling
+    if (currentIndex !== -1) {
+      const firstSibling = siblingGroups.at(0);
+      if (firstSibling && firstSibling !== this && firstSibling.focusableChildren.length) {
+        log("cycling to first sibling", this.id, firstSibling.id);
+        this.#deactivate();
+        firstSibling.focusableChildren.at(0)?.focus();
+        return;
+      }
+    }
+
+    // 5. No valid navigation - deactivate
+    log("no valid next navigation, deactivating", this.id);
+    this.#deactivate();
   }
 
   private navigateToPreviousGroup(): void {
-    const prevGroup = this.findPreviousFocusGroup();
-    const firstChild = prevGroup?.focusableChildren.at(0);
-    if (prevGroup && prevGroup !== this && firstChild) {
-      log("navigating to prev group - deactivating", this.id, prevGroup.id);
-      // Only deactivate after confirming we have a valid previous group
-      this.#deactivate();
+    // 1. Try previous sibling groups
+    const siblingGroups = this.getSiblingFocusGroups();
+    const currentIndex = siblingGroups.indexOf(this);
 
-      // Focus the first focusable child in the previous group
-      firstChild.focus();
-    } else {
-      log("no prev group, focusing last child", this.id);
-      this.focusableChildren.at(-1)?.focus();
+    if (currentIndex > 0) {
+      const prevSibling = siblingGroups.at(currentIndex - 1);
+      if (prevSibling?.focusableChildren.length) {
+        // Find the deepest last child group of the previous sibling
+        const deepestGroup = this.findDeepestLastChildGroup(prevSibling);
+        log("navigating to previous sibling (deepest)", this.id, deepestGroup.id);
+        this.#deactivate();
+        deepestGroup.focusableChildren.at(0)?.focus();
+        return;
+      }
     }
+
+    // 2. At the beginning of siblings - go to parent and focus current item
+    const parent = this.getParentFocusGroup();
+    if (parent) {
+      log("going to parent and focusing current", this.id, parent.id);
+      this.#deactivate();
+      const currentNode = parent.currentNode;
+      if (currentNode) {
+        currentNode.focus();
+      } else {
+        parent.focusableChildren.at(0)?.focus();
+      }
+      return;
+    }
+
+    // 3. No parent (root level) - deactivate to let window handle
+    log("no valid prev navigation, deactivating", this.id);
+    this.#deactivate();
   }
 
   private findNextFocusGroup(): FocusGroup | null {
@@ -229,10 +310,15 @@ export class FocusGroup extends InteractionNode {
       return siblingGroups.at(currentIndex + 1) ?? null; // Next sibling
     }
 
-    // 3. Finally, traverse up to parent and find its next group
+    // 3. At the end of siblings - go to parent and find its next
     const parent = this.getParentFocusGroup();
     if (parent) {
       return parent.findNextFocusGroup();
+    }
+
+    // 4. No parent (root level) - cycle back to first sibling
+    if (currentIndex !== -1) {
+      return siblingGroups.at(0) ?? null;
     }
 
     return null;
@@ -242,6 +328,7 @@ export class FocusGroup extends InteractionNode {
     // 1. Try previous sibling groups
     const siblingGroups = this.getSiblingFocusGroups();
     const currentIndex = siblingGroups.indexOf(this);
+
     if (currentIndex > 0) {
       const prevSibling = siblingGroups.at(currentIndex - 1);
       if (prevSibling) {
@@ -250,8 +337,21 @@ export class FocusGroup extends InteractionNode {
       }
     }
 
-    // 2. Go to parent group
-    return this.getParentFocusGroup();
+    // 2. At the beginning of siblings - go to parent
+    const parent = this.getParentFocusGroup();
+    if (parent) {
+      return parent;
+    }
+
+    // 3. No parent (root level) - cycle to last sibling
+    if (currentIndex === 0) {
+      const lastSibling = siblingGroups.at(-1);
+      if (lastSibling && lastSibling !== this) {
+        return this.findDeepestLastChildGroup(lastSibling);
+      }
+    }
+
+    return null;
   }
 
   private findDeepestLastChildGroup(group: FocusGroup): FocusGroup {
@@ -286,7 +386,13 @@ export class FocusGroup extends InteractionNode {
     const parent = this.getParentFocusGroup();
     if (!parent) {
       // No parent, find all root-level focus groups
-      return this.findAllRootFocusGroups();
+      const rootGroups = this.findAllRootFocusGroups();
+      // Ensure the current group is included in the siblings list
+      if (!rootGroups.includes(this)) {
+        rootGroups.push(this);
+        return this.sortGroupsByPosition(rootGroups);
+      }
+      return rootGroups;
     }
 
     return parent.getChildFocusGroups();
@@ -320,7 +426,10 @@ export class FocusGroup extends InteractionNode {
   private findAllRootFocusGroups(): FocusGroup[] {
     // Find all focus groups that don't have a focus group parent
     const allGroups = this.findAllFocusGroups();
-    return allGroups.filter(group => group.getParentFocusGroup() === null);
+    const rootGroups = allGroups.filter(group => group.getParentFocusGroup() === null);
+
+    // Sort root groups by position for consistent navigation order
+    return this.sortGroupsByPosition(rootGroups);
   }
 
   private findAllFocusGroups(): FocusGroup[] {
@@ -346,15 +455,18 @@ export class FocusGroup extends InteractionNode {
       const aPos = this.getGroupPosition(a);
       const bPos = this.getGroupPosition(b);
 
-      if (!aPos || !bPos) return 0;
+      // If either position is unavailable, maintain stable order by using tree order
+      if (!aPos && !bPos) return 0;
+      if (!aPos) return 1; // Move groups without position to end
+      if (!bPos) return -1;
 
-      // Sort left to right, then top to bottom
+      // Sort top to bottom first (reading order), then left to right
       const yDiff = aPos.top - bPos.top;
-      if (Math.abs(yDiff) > 5) { // Allow some tolerance for same "row"
-        return yDiff;
-      }
 
-      return aPos.left - bPos.left;
+      if (yDiff !== 0) return yDiff;
+
+      const xDiff = aPos.left - bPos.left;
+      return xDiff;
     });
   }
 
@@ -435,15 +547,13 @@ export class ListFocusGroup extends FocusGroup {
 
       if (isNext) {
         this.focusNext(); // Always cycles within the group
-        event.preventDefault();
-        event.stopPropagation();
+        event.stopImmediatePropagation();
         return;
       }
 
       if (isPrev) {
         this.focusPrevious(); // Always cycles within the group
-        event.preventDefault();
-        event.stopPropagation();
+        event.stopImmediatePropagation();
         return;
       }
     }, { signal: this.keyboardAbortController.signal });
@@ -484,6 +594,7 @@ export const FocusGroupComponent = (props: PropsWithChildren<ComponentProps<type
 
 type ListProps = ComponentProps<typeof Box> & {
   orientation?: 'horizontal' | 'vertical';
+  id?: string;
 };
 
 export const List = (props: PropsWithChildren<ListProps>) => {
